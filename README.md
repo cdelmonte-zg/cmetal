@@ -136,7 +136,8 @@ python3 scripts/check_exercises.py   # every exercise must fail as
                                      # shipped, every solution must pass
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add exercises.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add exercises and
+[VISION.md](VISION.md) for where the project is headed.
 
 ## License
 
