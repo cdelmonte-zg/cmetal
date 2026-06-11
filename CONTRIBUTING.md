@@ -56,6 +56,9 @@ dir = "01_pointers"
 test = true          # compile with -DTEST and run tests
 sanitizers = false   # compile with ASan/UBSan
 # flags = ["-O2"]    # optional extra compiler flags for this exercise
+# compilers = ["gcc"]  # optional: restrict to compilers where the bug is
+                       # detectable (default: all). Restricted exercises are
+                       # skipped when clings runs with another --compiler.
 hints = [
     "First hint: the gentlest nudge",
     "Second hint: more specific",

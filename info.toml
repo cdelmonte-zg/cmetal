@@ -232,7 +232,10 @@ test = true
 sanitizers = true
 # Strict aliasing violations are only diagnosed with optimization enabled;
 # -Werror (in the base flags) turns the warning into a compile failure.
+# -Wstrict-aliasing is a gcc-only diagnostic (a no-op on clang), so this
+# exercise is meaningful only with gcc.
 flags = ["-O2", "-Wstrict-aliasing=2"]
+compilers = ["gcc"]
 hints = [
   """
 How are the raw bits of the float being accessed?

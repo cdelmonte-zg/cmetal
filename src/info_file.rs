@@ -31,6 +31,10 @@ pub struct ExerciseInfo {
     /// Extra compiler flags for this exercise (e.g. ["-O2", "-Wstrict-aliasing=2"])
     #[serde(default)]
     pub flags: Vec<String>,
+    /// Compilers this exercise works with (e.g. ["gcc"]).
+    /// Absent = works with every compiler.
+    #[serde(default)]
+    pub compilers: Option<Vec<String>>,
     /// Single hint (legacy format, still supported)
     #[serde(default)]
     pub hint: Option<String>,
@@ -40,6 +44,14 @@ pub struct ExerciseInfo {
 }
 
 impl ExerciseInfo {
+    /// Whether this exercise is meant to run with the given compiler.
+    pub fn supports_compiler(&self, compiler: &str) -> bool {
+        match &self.compilers {
+            None => true,
+            Some(list) => list.iter().any(|c| c.eq_ignore_ascii_case(compiler)),
+        }
+    }
+
     /// Get all hints as a slice, merging both formats.
     /// If `hints` array is set, use that. Otherwise wrap `hint` string.
     pub fn get_hints(&self) -> Vec<&str> {
@@ -150,6 +162,28 @@ hint = "legacy hint"
         let info = InfoFile::parse_str(full_toml()).unwrap();
         assert_eq!(info.exercises[0].flags, vec!["-O2", "-Wstrict-aliasing=2"]);
         assert!(info.exercises[1].flags.is_empty());
+    }
+
+    #[test]
+    fn supports_compiler_default_all() {
+        let info = InfoFile::parse_str(minimal_toml()).unwrap();
+        assert!(info.exercises[0].supports_compiler("gcc"));
+        assert!(info.exercises[0].supports_compiler("clang"));
+    }
+
+    #[test]
+    fn supports_compiler_restricted() {
+        let toml = r#"
+format_version = 1
+[[exercises]]
+name = "ex1"
+dir = "00_intro"
+compilers = ["gcc"]
+"#;
+        let info = InfoFile::parse_str(toml).unwrap();
+        assert!(info.exercises[0].supports_compiler("gcc"));
+        assert!(info.exercises[0].supports_compiler("GCC"));
+        assert!(!info.exercises[0].supports_compiler("clang"));
     }
 
     #[test]

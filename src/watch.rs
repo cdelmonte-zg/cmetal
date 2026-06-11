@@ -203,12 +203,19 @@ pub fn run_watch(
                 for (i, ex) in state.exercises.iter().enumerate() {
                     let status = if state.is_done(ex.name()) {
                         "✓"
+                    } else if !ex.supported {
+                        "−"
                     } else if i == state.current_index {
                         "→"
                     } else {
                         " "
                     };
-                    println!("  {status} {}\r", ex.name());
+                    let note = if ex.supported {
+                        String::new()
+                    } else {
+                        format!("  (requires {})", ex.required_compilers())
+                    };
+                    println!("  {status} {}{note}\r", ex.name());
                 }
                 println!("\r");
                 print_watch_commands();
@@ -274,6 +281,16 @@ fn run_current_exercise(state: &AppState, compiler: &Compiler, build_dir: &Path)
     println!("  Exercise: {}\r", exercise.name());
     println!("  File: {}\r", exercise.path.display());
     println!("\r");
+
+    if !exercise.supported {
+        term::print_warning(&format!(
+            "This exercise requires {} (current compiler: {}).",
+            exercise.required_compilers(),
+            compiler.kind()
+        ));
+        term::print_info("Press 'n' to skip it, or restart clings with --compiler.");
+        return false;
+    }
 
     if !exercise.exists() {
         term::print_error(&format!(

@@ -118,7 +118,8 @@ impl AppState {
 
         for i in 1..=len {
             let idx = (start + i) % len;
-            if !self.done.contains(self.exercises[idx].name()) {
+            let ex = &self.exercises[idx];
+            if ex.supported && !self.done.contains(ex.name()) {
                 self.current_index = idx;
                 return true;
             }
@@ -126,12 +127,23 @@ impl AppState {
         false
     }
 
+    /// Exercises that don't support the selected compiler don't count:
+    /// they can't be completed in this run, so they must not block the
+    /// final message nor inflate the progress total.
     pub fn all_done(&self) -> bool {
-        self.exercises.iter().all(|e| self.done.contains(e.name()))
+        self.exercises
+            .iter()
+            .filter(|e| e.supported)
+            .all(|e| self.done.contains(e.name()))
     }
 
     pub fn progress(&self) -> (usize, usize) {
-        (self.done.len(), self.exercises.len())
+        let supported: Vec<_> = self.exercises.iter().filter(|e| e.supported).collect();
+        let done = supported
+            .iter()
+            .filter(|e| self.done.contains(e.name()))
+            .count();
+        (done, supported.len())
     }
 
     pub fn find_exercise(&self, name: &str) -> Option<usize> {
@@ -159,6 +171,7 @@ mod tests {
             test: false,
             sanitizers: false,
             flags: Vec::new(),
+            compilers: None,
             hint: None,
             hints: None,
         }
@@ -170,8 +183,15 @@ mod tests {
             path: PathBuf::from(format!("/tmp/{name}.c")),
             solution_path: PathBuf::from(format!("/tmp/{name}_sol.c")),
             reveal_path: PathBuf::from(format!("/tmp/{name}_revealed.c")),
+            supported: true,
             info,
         }
+    }
+
+    fn make_unsupported_exercise(name: &str) -> Exercise {
+        let mut ex = make_exercise(name);
+        ex.supported = false;
+        ex
     }
 
     fn make_state(names: &[&str], base_dir: &Path) -> AppState {
@@ -182,6 +202,31 @@ mod tests {
             done: HashSet::new(),
             current_index: 0,
         }
+    }
+
+    // --- Compiler support ---
+
+    #[test]
+    fn unsupported_exercises_skipped_and_uncounted() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut state = make_state(&["a", "c"], tmp.path());
+        state
+            .exercises
+            .insert(1, make_unsupported_exercise("b_gcc_only"));
+
+        // progress total ignores the unsupported exercise
+        assert_eq!(state.progress(), (0, 2));
+
+        // navigation skips it
+        state.current_index = 0;
+        assert!(state.next_pending());
+        assert_eq!(state.current_exercise().unwrap().name(), "c");
+
+        // all_done ignores it
+        state.mark_done("a");
+        state.mark_done("c");
+        assert!(state.all_done());
+        assert_eq!(state.progress(), (2, 2));
     }
 
     // --- Navigation ---

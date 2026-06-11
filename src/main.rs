@@ -68,11 +68,16 @@ fn resolve_base_dir() -> Result<PathBuf> {
     )
 }
 
-fn load_exercises(info: &InfoFile, base_dir: &Path, work_dir: &Path) -> Vec<Exercise> {
+fn load_exercises(
+    info: &InfoFile,
+    base_dir: &Path,
+    work_dir: &Path,
+    compiler: CompilerKind,
+) -> Vec<Exercise> {
     let solutions_dir = base_dir.join("solutions");
     info.exercises
         .iter()
-        .map(|ei| Exercise::new(ei.clone(), work_dir, &solutions_dir))
+        .map(|ei| Exercise::new(ei.clone(), work_dir, &solutions_dir, compiler.command_name()))
         .collect()
 }
 
@@ -129,7 +134,7 @@ fn main() -> Result<()> {
 
     let compiler = Compiler::new(compiler_kind, &base_dir)?;
     let work_dir = prepare_workspace(&info, &base_dir)?;
-    let exercises = load_exercises(&info, &base_dir, &work_dir);
+    let exercises = load_exercises(&info, &base_dir, &work_dir, compiler_kind);
     let build_dir = base_dir.join("target").join("clings");
     let mut state = AppState::new(exercises, &base_dir)?;
 
@@ -155,6 +160,17 @@ fn main() -> Result<()> {
             println!();
             term::print_header(&format!("Running: {}", exercise.name()));
             println!();
+
+            if !exercise.supported {
+                term::print_warning(&format!(
+                    "{} requires {} (current compiler: {}). Re-run with --compiler.",
+                    exercise.name(),
+                    exercise.required_compilers(),
+                    compiler.kind()
+                ));
+                println!();
+                return Ok(());
+            }
 
             let result = exercise.verify(&compiler, &build_dir)?;
             if result.success {
@@ -233,8 +249,11 @@ fn main() -> Result<()> {
                 .context(format!("Exercise '{name}' not found"))?;
 
             let exercise = &state.exercises[idx];
+            // For exercises that don't support the current compiler a verify
+            // pass would be meaningless (the bug may not even be detectable),
+            // so only completed ones unlock.
             let unlocked = state.is_done(&name)
-                || exercise.verify(&compiler, &build_dir)?.success;
+                || (exercise.supported && exercise.verify(&compiler, &build_dir)?.success);
 
             println!();
             if !unlocked {
@@ -265,12 +284,19 @@ fn main() -> Result<()> {
                 }
                 let status = if state.is_done(exercise.name()) {
                     "✓"
+                } else if !exercise.supported {
+                    "−"
                 } else if i == state.current_index {
                     "→"
                 } else {
                     " "
                 };
-                println!("    {status} {}", exercise.name());
+                let note = if exercise.supported {
+                    String::new()
+                } else {
+                    format!("  (requires {})", exercise.required_compilers())
+                };
+                println!("    {status} {}{note}", exercise.name());
             }
             println!();
         }
@@ -288,6 +314,14 @@ fn main() -> Result<()> {
 
             let mut all_passed = true;
             for exercise in &state.exercises {
+                if !exercise.supported {
+                    term::print_warning(&format!(
+                        "{}: skipped (requires {})",
+                        exercise.name(),
+                        exercise.required_compilers()
+                    ));
+                    continue;
+                }
                 if !exercise.exists() {
                     term::print_warning(&format!("{}: file not found", exercise.name()));
                     continue;

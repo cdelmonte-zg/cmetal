@@ -176,7 +176,9 @@ clings reset                 # clear progress, restore pristine exercises
 ## Features
 
 - **Watch mode** -- recompiles on every save, shows errors instantly
-- **gcc + clang** -- works with both compilers (`--compiler clang`)
+- **gcc + clang** -- pick at startup with `--compiler clang`; exercises
+  that rely on compiler-specific diagnostics declare it and are skipped
+  (shown as "requires gcc" in the list) instead of passing vacuously
 - **Sanitizers** -- AddressSanitizer and UBSan catch hidden bugs
 - **Progressive hints** -- press `h` repeatedly, hints accumulate
 - **UB Lab** -- dedicated exercises where you trigger real undefined behavior
