@@ -33,7 +33,7 @@ the exercises are pure C11.
 
 - **gcc** and/or **clang** (C11 support required)
 - **git** to clone this repository (the exercises live here)
-- **Rust toolchain** — only if you build from source (option 2 below)
+- **Rust toolchain** — only if you build from source (option 3 below)
 
 ## Install
 
@@ -73,6 +73,41 @@ git clone https://github.com/cdelmonte-zg/clings.git
 cd clings
 cargo install --path .
 ```
+
+## Upgrade
+
+Update the exercises (your work in `my_exercises/` is never overwritten;
+newly added exercises appear on the next run):
+
+```bash
+cd clings
+git pull
+```
+
+Then update the binary, matching how you installed it:
+
+```bash
+brew upgrade clings              # Homebrew
+cargo install --path . --force   # built from source
+```
+
+If you installed a prebuilt binary, download the new archive from the
+[latest release](https://github.com/cdelmonte-zg/clings/releases/latest)
+and replace `/usr/local/bin/clings` the same way you installed it.
+
+## Uninstall
+
+Remove the binary, matching how you installed it:
+
+```bash
+brew uninstall clings            # Homebrew
+sudo rm /usr/local/bin/clings    # prebuilt binary
+cargo uninstall clings           # built from source
+```
+
+Everything else — your progress, `my_exercises/`, revealed solutions —
+lives inside the cloned repository: delete the `clings` directory and
+no trace is left.
 
 ## Getting started
 
