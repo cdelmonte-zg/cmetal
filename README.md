@@ -74,25 +74,49 @@ cd clings
 cargo install --path .
 ```
 
-## Quick start
+## Getting started
+
+### I want to learn C
 
 ```bash
+brew install cdelmonte-zg/tap/clings      # or any install option above
+git clone https://github.com/cdelmonte-zg/clings.git
+cd clings
 clings
 ```
 
 On first run clings copies the exercises into `my_exercises/` — that's
 where you work. The directory is gitignored, so the pristine exercises
 in `exercises/` stay untouched and your progress never ends up in a
-commit. `clings reset` restores the pristine copies.
+commit.
 
-Official solutions are stored obfuscated (no accidental spoilers while
-browsing the repo). When an exercise passes, its solution is revealed
-in `my_solutions/` so you can compare it with yours — or run
-`clings solution <name>` for any exercise you've already solved.
+Each exercise has a bug or a `TODO` for you to fix: open the `.c` file
+under `my_exercises/` in your editor, save your changes, and clings
+recompiles and verifies automatically. Stuck? Press `h` for progressive
+hints. When an exercise passes, the official solution is revealed in
+`my_solutions/` so you can compare it with yours (solutions are stored
+obfuscated — no accidental spoilers while browsing the repo).
 
-Each exercise has a bug or a `TODO` for you to fix.
-Open the `.c` file under `my_exercises/` in your editor, save your
-changes, and clings will automatically recompile and verify.
+### I'm coming back after a break
+
+Just run `clings` again from the repo — progress persists across
+sessions. `clings list` shows where you left off, `clings solution
+<name>` re-opens any solution you've already earned, and `clings reset`
+wipes progress and restores the pristine exercises if you want to start
+over.
+
+### I want to contribute an exercise
+
+Fork the repo and read [CONTRIBUTING.md](CONTRIBUTING.md): you'll write
+a broken `.c` file, its solution, and hints in `info.toml`. Two tools do
+the quality control for you:
+
+```bash
+python3 scripts/solutions_codec.py unpack   # edit solutions in plaintext
+python3 scripts/check_exercises.py          # the invariant gatekeeper
+```
+
+[VISION.md](VISION.md) lists the topics we most want covered.
 
 ### Interactive commands
 
