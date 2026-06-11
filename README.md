@@ -31,10 +31,36 @@ the exercises are pure C11.
 
 ## Prerequisites
 
-- **Rust toolchain** (`rustup` or system package)
 - **gcc** and/or **clang** (C11 support required)
+- **git** to clone this repository (the exercises live here)
+- **Rust toolchain** — only if you build from source (option 2 below)
 
 ## Install
+
+### Option 1: prebuilt binary (no Rust required)
+
+Download the archive for your platform from the
+[latest release](https://github.com/cdelmonte-zg/clings/releases/latest),
+then:
+
+```bash
+tar -xzf clings-<version>-<target>.tar.gz
+sudo mv clings-<version>-<target>/clings /usr/local/bin/
+```
+
+You still need this repository for the exercises:
+
+```bash
+git clone https://github.com/cdelmonte-zg/clings.git
+cd clings
+clings
+```
+
+> **macOS:** the binaries are not code-signed yet; if Gatekeeper blocks
+> the first run, clear the quarantine flag with
+> `xattr -d com.apple.quarantine $(which clings)`.
+
+### Option 2: build from source
 
 ```bash
 git clone https://github.com/cdelmonte-zg/clings.git
