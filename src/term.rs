@@ -44,11 +44,7 @@ pub fn print_header(msg: &str) {
 pub fn print_progress(done: usize, total: usize) {
     let mut stdout = io::stdout();
     let bar_width = 30;
-    let filled = if total > 0 {
-        (done * bar_width) / total
-    } else {
-        0
-    };
+    let filled = (done * bar_width).checked_div(total).unwrap_or(0);
     let empty = bar_width - filled;
 
     let _ = crossterm::execute!(stdout, SetForegroundColor(Color::Cyan));
