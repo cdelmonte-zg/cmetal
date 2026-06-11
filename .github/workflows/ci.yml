@@ -11,16 +11,22 @@ env:
 
 jobs:
   exercise-invariant:
-    name: exercise invariant
+    name: exercise invariant (${{ matrix.compiler }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
     steps:
       - uses: actions/checkout@v4
 
       # Every exercise must FAIL as shipped and every solution must PASS,
       # replicating Exercise::verify() exactly (per-exercise test/sanitizers/
       # flags from info.toml). Catches exercises pushed in their solved state.
+      # Exercises with `compilers = [...]` restrictions are skipped on the
+      # other compiler; their solutions are verified everywhere.
       - name: Check exercise invariant
-        run: python3 scripts/check_exercises.py
+        run: python3 scripts/check_exercises.py --compiler ${{ matrix.compiler }}
 
   build-and-test:
     name: ${{ matrix.os }}

@@ -15,11 +15,12 @@ from info.toml:
   2. if test:        recompile with -DTEST, run the tests
   3. if sanitizers:  recompile with ASan/UBSan (no -Werror), run again
 
-NOTE: the invariant is only guaranteed with gcc. Some exercises rely on
-gcc-specific diagnostics (e.g. -Wstrict-aliasing=2, a no-op on clang).
+Exercises restricted to specific compilers via `compilers = [...]` in
+info.toml are skipped on other compilers (their "must fail as shipped"
+half doesn't hold there), but their solutions are still verified.
 
 Usage:
-    python3 scripts/check_exercises.py [--compiler gcc]
+    python3 scripts/check_exercises.py [--compiler gcc|clang]
 """
 
 import argparse
@@ -104,19 +105,31 @@ def main():
         info = tomllib.load(f)
 
     problems = []
+    skipped = 0
+    compiler_name = os.path.basename(args.compiler)
     with tempfile.TemporaryDirectory() as build_dir:
         for ex in info["exercises"]:
             rel = os.path.join(ex["dir"], f"{ex['name']}.c")
 
-            stage = verify(args.compiler, os.path.join("exercises", rel),
-                           ex, build_dir)
-            if stage is None:
-                problems.append(
-                    f"exercises/{rel}: passes as shipped -- the learner "
-                    f"gets a green check without fixing anything")
-                print(f"  FAIL exercise {ex['name']:24s} passes as-is")
+            # The "must fail as shipped" half only holds for compilers the
+            # exercise supports (e.g. gcc-only diagnostics). The solution
+            # must still pass with every compiler, so that half always runs.
+            supported = ex.get("compilers") is None or any(
+                c.lower() == compiler_name.lower() for c in ex["compilers"])
+            if not supported:
+                skipped += 1
+                req = ", ".join(ex["compilers"])
+                print(f"  skip exercise {ex['name']:24s} requires: {req}")
             else:
-                print(f"  ok   exercise {ex['name']:24s} fails at: {stage}")
+                stage = verify(args.compiler, os.path.join("exercises", rel),
+                               ex, build_dir)
+                if stage is None:
+                    problems.append(
+                        f"exercises/{rel}: passes as shipped -- the learner "
+                        f"gets a green check without fixing anything")
+                    print(f"  FAIL exercise {ex['name']:24s} passes as-is")
+                else:
+                    print(f"  ok   exercise {ex['name']:24s} fails at: {stage}")
 
             src = solution_source(rel, build_dir)
             if src is None:
@@ -136,7 +149,9 @@ def main():
         for p in problems:
             print(f"  - {p}")
         return 1
-    print(f"\nOK: all {n} exercises fail as shipped, all {n} solutions pass.")
+    note = f" ({skipped} exercise check(s) skipped: other compiler)" if skipped else ""
+    print(f"\nOK: all {n - skipped} exercises fail as shipped, "
+          f"all {n} solutions pass.{note}")
     return 0
 
 

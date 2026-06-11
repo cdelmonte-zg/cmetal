@@ -10,6 +10,8 @@ pub struct Exercise {
     pub solution_path: PathBuf,
     /// Where the decoded solution is revealed once the exercise is solved.
     pub reveal_path: PathBuf,
+    /// Whether this exercise supports the compiler selected for this run.
+    pub supported: bool,
 }
 
 pub struct VerifyResult {
@@ -19,18 +21,35 @@ pub struct VerifyResult {
 }
 
 impl Exercise {
-    pub fn new(info: ExerciseInfo, exercises_dir: &Path, solutions_dir: &Path) -> Self {
+    pub fn new(
+        info: ExerciseInfo,
+        exercises_dir: &Path,
+        solutions_dir: &Path,
+        compiler: &str,
+    ) -> Self {
         let file = format!("{}.c", info.name);
         let path = exercises_dir.join(&info.dir).join(&file);
         let solution_path = solutions_dir.join(&info.dir).join(&file);
         let base_dir = solutions_dir.parent().unwrap_or(solutions_dir);
         let reveal_path = base_dir.join("my_solutions").join(&info.dir).join(&file);
+        let supported = info.supports_compiler(compiler);
         Self {
             info,
             path,
             solution_path,
             reveal_path,
+            supported,
         }
+    }
+
+    /// Human-readable list of compilers this exercise requires,
+    /// e.g. "gcc" or "gcc, clang". Empty when unrestricted.
+    pub fn required_compilers(&self) -> String {
+        self.info
+            .compilers
+            .as_deref()
+            .unwrap_or_default()
+            .join(", ")
     }
 
     /// Decode the official solution and write it to `my_solutions/`.
