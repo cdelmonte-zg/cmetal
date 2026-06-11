@@ -78,3 +78,93 @@ jobs:
             clings-*.tar.gz
             clings-*.tar.gz.sha256
           generate_release_notes: true
+
+  update-homebrew-tap:
+    name: Update Homebrew tap
+    needs: release
+    runs-on: ubuntu-latest
+    # skip prereleases like v0.2.0-rc1
+    if: ${{ !contains(github.ref_name, '-') }}
+    steps:
+      - name: Update formula
+        env:
+          VERSION_TAG: ${{ github.ref_name }}
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TAP_TOKEN}" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN not set - skipping tap update (update Formula/clings.rb manually)"
+            exit 0
+          fi
+
+          VERSION="${VERSION_TAG#v}"
+
+          declare -A SHA
+          for target in x86_64-apple-darwin aarch64-apple-darwin x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
+            URL="https://github.com/cdelmonte-zg/clings/releases/download/${VERSION_TAG}/clings-${VERSION_TAG}-${target}.tar.gz"
+            curl -fsSL -o /tmp/clings.tar.gz "$URL"
+            SHA[$target]=$(sha256sum /tmp/clings.tar.gz | awk '{print $1}')
+          done
+
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/cdelmonte-zg/homebrew-tap.git" tap
+          cd tap
+          mkdir -p Formula
+
+          cat > Formula/clings.rb <<EOF
+          class Clings < Formula
+            desc "Small exercises to learn advanced C concepts - inspired by rustlings"
+            homepage "https://github.com/cdelmonte-zg/clings"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/cdelmonte-zg/clings/releases/download/${VERSION_TAG}/clings-${VERSION_TAG}-aarch64-apple-darwin.tar.gz"
+                sha256 "${SHA[aarch64-apple-darwin]}"
+              end
+              on_intel do
+                url "https://github.com/cdelmonte-zg/clings/releases/download/${VERSION_TAG}/clings-${VERSION_TAG}-x86_64-apple-darwin.tar.gz"
+                sha256 "${SHA[x86_64-apple-darwin]}"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "https://github.com/cdelmonte-zg/clings/releases/download/${VERSION_TAG}/clings-${VERSION_TAG}-aarch64-unknown-linux-musl.tar.gz"
+                sha256 "${SHA[aarch64-unknown-linux-musl]}"
+              end
+              on_intel do
+                url "https://github.com/cdelmonte-zg/clings/releases/download/${VERSION_TAG}/clings-${VERSION_TAG}-x86_64-unknown-linux-musl.tar.gz"
+                sha256 "${SHA[x86_64-unknown-linux-musl]}"
+              end
+            end
+
+            def install
+              bin.install "clings"
+            end
+
+            def caveats
+              <<~EOS
+                clings needs the exercises repository to run:
+                  git clone https://github.com/cdelmonte-zg/clings.git
+                  cd clings && clings
+                A C compiler with C11 support (gcc or clang) is also required.
+              EOS
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/clings --version")
+            end
+          end
+          EOF
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/clings.rb
+          if git diff --cached --quiet; then
+            echo "Formula already up to date"
+          else
+            git commit -m "clings ${VERSION}"
+            git push
+          fi
