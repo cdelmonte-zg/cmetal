@@ -12,6 +12,7 @@ notify = "7"
 notify-debouncer-mini = "0.5"
 crossterm = "0.28"
 anyhow = "1"
+base64 = "0.22"
 console = "0.15"
 
 [dev-dependencies]

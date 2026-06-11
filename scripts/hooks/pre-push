@@ -1,0 +1,8 @@
+#!/bin/sh
+# Refuse to push if the exercise invariant is broken (e.g. exercises were
+# accidentally committed in their solved state).
+#
+# Enable with:  git config core.hooksPath scripts/hooks
+
+echo "pre-push: checking the exercise invariant..."
+exec python3 "$(git rev-parse --show-toplevel)/scripts/check_exercises.py"

@@ -10,6 +10,18 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  exercise-invariant:
+    name: exercise invariant
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Every exercise must FAIL as shipped and every solution must PASS,
+      # replicating Exercise::verify() exactly (per-exercise test/sanitizers/
+      # flags from info.toml). Catches exercises pushed in their solved state.
+      - name: Check exercise invariant
+        run: python3 scripts/check_exercises.py
+
   build-and-test:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -35,10 +47,13 @@ jobs:
       - name: cargo test
         run: cargo test
 
+      - name: Unpack solutions
+        run: python3 scripts/solutions_codec.py unpack --to /tmp/solutions_plain
+
       - name: Verify solutions (gcc)
         shell: bash
         run: |
-          find solutions -name '*.c' | sort | while read -r f; do
+          find /tmp/solutions_plain -name '*.c' | sort | while read -r f; do
             echo "::group::gcc $f"
             gcc -Wall -Wextra -Werror -pedantic -std=c11 -Iinclude -o /tmp/test_bin "$f" && /tmp/test_bin
             gcc -Wall -Wextra -Werror -pedantic -std=c11 -Iinclude -DTEST -o /tmp/test_bin "$f" && /tmp/test_bin
@@ -48,7 +63,7 @@ jobs:
       - name: Verify solutions (clang)
         shell: bash
         run: |
-          find solutions -name '*.c' | sort | while read -r f; do
+          find /tmp/solutions_plain -name '*.c' | sort | while read -r f; do
             echo "::group::clang $f"
             clang -Wall -Wextra -Werror -pedantic -std=c11 -Iinclude -o /tmp/test_bin "$f" && /tmp/test_bin
             clang -Wall -Wextra -Werror -pedantic -std=c11 -Iinclude -DTEST -o /tmp/test_bin "$f" && /tmp/test_bin
@@ -58,7 +73,7 @@ jobs:
       - name: Verify solutions with sanitizers
         shell: bash
         run: |
-          find solutions -name '*.c' | sort | while read -r f; do
+          find /tmp/solutions_plain -name '*.c' | sort | while read -r f; do
             echo "::group::sanitizer $f"
             gcc -fsanitize=address,undefined -fno-sanitize-recover=all -std=c11 -Iinclude -DTEST -g -o /tmp/test_bin "$f" && /tmp/test_bin
             echo "::endgroup::"

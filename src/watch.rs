@@ -291,6 +291,12 @@ fn run_current_exercise(state: &AppState, compiler: &Compiler, build_dir: &Path)
                     term::print_stage_output("Program", &result.output);
                 }
                 println!("\r");
+                if let Ok(path) = exercise.reveal_solution() {
+                    term::print_info(&format!(
+                        "Official solution revealed: {} — compare it with yours!",
+                        path.display()
+                    ));
+                }
                 term::print_info("Press 'n' to move to the next exercise.");
                 true
             } else {

@@ -2,6 +2,7 @@ mod app_state;
 mod compiler;
 mod exercise;
 mod info_file;
+mod solutions;
 mod term;
 mod watch;
 
@@ -39,6 +40,11 @@ enum Commands {
         #[arg(short, long, default_value = "1")]
         level: usize,
     },
+    /// Reveal the official solution (only after the exercise passes)
+    Solution {
+        /// Exercise name (defaults to current)
+        name: Option<String>,
+    },
     /// List all exercises and their status
     List,
     /// Verify all exercises
@@ -62,13 +68,48 @@ fn resolve_base_dir() -> Result<PathBuf> {
     )
 }
 
-fn load_exercises(info: &InfoFile, base_dir: &Path) -> Vec<Exercise> {
-    let exercises_dir = base_dir.join("exercises");
+fn load_exercises(info: &InfoFile, base_dir: &Path, work_dir: &Path) -> Vec<Exercise> {
     let solutions_dir = base_dir.join("solutions");
     info.exercises
         .iter()
-        .map(|ei| Exercise::new(ei.clone(), &exercises_dir, &solutions_dir))
+        .map(|ei| Exercise::new(ei.clone(), work_dir, &solutions_dir))
         .collect()
+}
+
+/// Learners work on copies in `my_exercises/` (gitignored), so the pristine
+/// files in `exercises/` are never modified and can't be pushed in their
+/// solved state. Copies any exercise that is not yet in the workspace,
+/// leaving files the learner already edited untouched.
+fn prepare_workspace(info: &InfoFile, base_dir: &Path) -> Result<PathBuf> {
+    let pristine_dir = base_dir.join("exercises");
+    let work_dir = base_dir.join("my_exercises");
+    for ei in &info.exercises {
+        let file = format!("{}.c", ei.name);
+        let src = pristine_dir.join(&ei.dir).join(&file);
+        let dst = work_dir.join(&ei.dir).join(&file);
+        if src.exists() && !dst.exists() {
+            std::fs::create_dir_all(dst.parent().unwrap())?;
+            std::fs::copy(&src, &dst).with_context(|| {
+                format!("Failed to copy {} into the workspace", src.display())
+            })?;
+        }
+    }
+    Ok(work_dir)
+}
+
+/// Overwrite every workspace file with its pristine version from `exercises/`.
+fn restore_workspace(info: &InfoFile, base_dir: &Path, work_dir: &Path) -> Result<()> {
+    let pristine_dir = base_dir.join("exercises");
+    for ei in &info.exercises {
+        let file = format!("{}.c", ei.name);
+        let src = pristine_dir.join(&ei.dir).join(&file);
+        let dst = work_dir.join(&ei.dir).join(&file);
+        if src.exists() {
+            std::fs::create_dir_all(dst.parent().unwrap())?;
+            std::fs::copy(&src, &dst)?;
+        }
+    }
+    Ok(())
 }
 
 fn main() -> Result<()> {
@@ -87,16 +128,16 @@ fn main() -> Result<()> {
     };
 
     let compiler = Compiler::new(compiler_kind, &base_dir)?;
-    let exercises = load_exercises(&info, &base_dir);
+    let work_dir = prepare_workspace(&info, &base_dir)?;
+    let exercises = load_exercises(&info, &base_dir, &work_dir);
     let build_dir = base_dir.join("target").join("clings");
-    let exercises_dir = base_dir.join("exercises");
     let mut state = AppState::new(exercises, &base_dir)?;
 
     match cli.command {
         None => {
             // Default: watch mode
             let welcome = info.welcome_message.as_deref();
-            watch::run_watch(&mut state, &compiler, &exercises_dir, &build_dir, welcome)?;
+            watch::run_watch(&mut state, &compiler, &work_dir, &build_dir, welcome)?;
         }
         Some(Commands::Run { name }) => {
             let name = name.unwrap_or_else(|| {
@@ -120,6 +161,12 @@ fn main() -> Result<()> {
                 term::print_success(&format!("{} passed!", exercise.name()));
                 if !result.output.is_empty() {
                     term::print_stage_output("Output", &result.output);
+                }
+                if let Ok(path) = exercise.reveal_solution() {
+                    term::print_info(&format!(
+                        "Official solution revealed: {}",
+                        path.display()
+                    ));
                 }
             } else {
                 term::print_error(&format!(
@@ -173,6 +220,35 @@ fn main() -> Result<()> {
             }
             println!();
         }
+        Some(Commands::Solution { name }) => {
+            let name = name.unwrap_or_else(|| {
+                state
+                    .current_exercise()
+                    .map(|e| e.name().to_string())
+                    .unwrap_or_default()
+            });
+
+            let idx = state
+                .find_exercise(&name)
+                .context(format!("Exercise '{name}' not found"))?;
+
+            let exercise = &state.exercises[idx];
+            let unlocked = state.is_done(&name)
+                || exercise.verify(&compiler, &build_dir)?.success;
+
+            println!();
+            if !unlocked {
+                term::print_warning(&format!(
+                    "{name} is not solved yet. Fix it first — then the solution unlocks!"
+                ));
+                println!();
+                std::process::exit(1);
+            }
+
+            let path = exercise.reveal_solution()?;
+            term::print_success(&format!("Solution for {name}: {}", path.display()));
+            println!();
+        }
         Some(Commands::List) => {
             println!();
             term::print_header("Exercises");
@@ -200,8 +276,9 @@ fn main() -> Result<()> {
         }
         Some(Commands::Reset) => {
             state.reset()?;
+            restore_workspace(&info, &base_dir, &work_dir)?;
             println!();
-            term::print_success("Progress reset. Starting fresh!");
+            term::print_success("Progress reset. Workspace restored to pristine exercises!");
             println!();
         }
         Some(Commands::Verify) => {

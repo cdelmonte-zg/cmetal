@@ -1,2 +1,11 @@
 /target
+/my_exercises
+/my_solutions
 .clings-state.txt
+
+# Plaintext solutions only exist locally while editing them
+# (scripts/solutions_codec.py unpack/pack); the repo holds .c.enc files.
+solutions/**/*.c
+
+# Python bytecode (scripts/)
+__pycache__/

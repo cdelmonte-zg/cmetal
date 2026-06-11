@@ -72,8 +72,11 @@ TEST(test_dispatch_add) {
         {"subtract", op_subtract},
         {"multiply", op_multiply},
     };
+    /* A runtime copy of the name: same contents as the literal in ops,
+       but a DIFFERENT address -- only strcmp() can match it. */
+    char name[] = "add";
     int result = 0;
-    int rc = dispatch(ops, 3, "add", 7, 3, &result);
+    int rc = dispatch(ops, 3, name, 7, 3, &result);
     ASSERT_EQ(rc, 0);
     ASSERT_EQ(result, 10);
 }
@@ -84,8 +87,9 @@ TEST(test_dispatch_subtract) {
         {"subtract", op_subtract},
         {"multiply", op_multiply},
     };
+    char name[] = "subtract";
     int result = 0;
-    int rc = dispatch(ops, 3, "subtract", 20, 8, &result);
+    int rc = dispatch(ops, 3, name, 20, 8, &result);
     ASSERT_EQ(rc, 0);
     ASSERT_EQ(result, 12);
 }
@@ -96,8 +100,9 @@ TEST(test_dispatch_multiply) {
         {"subtract", op_subtract},
         {"multiply", op_multiply},
     };
+    char name[] = "multiply";
     int result = 0;
-    int rc = dispatch(ops, 3, "multiply", 6, 7, &result);
+    int rc = dispatch(ops, 3, name, 6, 7, &result);
     ASSERT_EQ(rc, 0);
     ASSERT_EQ(result, 42);
 }
@@ -108,8 +113,9 @@ TEST(test_dispatch_unknown) {
         {"subtract", op_subtract},
         {"multiply", op_multiply},
     };
+    char name[] = "modulo";
     int result = -999;
-    int rc = dispatch(ops, 3, "modulo", 10, 3, &result);
+    int rc = dispatch(ops, 3, name, 10, 3, &result);
     ASSERT_EQ(rc, -1);
     ASSERT_EQ(result, -999);  /* result should be unchanged */
 }

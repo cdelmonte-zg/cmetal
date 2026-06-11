@@ -28,6 +28,9 @@ pub struct ExerciseInfo {
     pub test: bool,
     #[serde(default)]
     pub sanitizers: bool,
+    /// Extra compiler flags for this exercise (e.g. ["-O2", "-Wstrict-aliasing=2"])
+    #[serde(default)]
+    pub flags: Vec<String>,
     /// Single hint (legacy format, still supported)
     #[serde(default)]
     pub hint: Option<String>,
@@ -100,6 +103,7 @@ name = "ex1"
 dir = "00_intro"
 test = true
 sanitizers = true
+flags = ["-O2", "-Wstrict-aliasing=2"]
 hints = ["hint1", "hint2"]
 
 [[exercises]]
@@ -138,6 +142,14 @@ hint = "legacy hint"
         let ex = &info.exercises[0];
         assert!(ex.test);
         assert!(!ex.sanitizers);
+        assert!(ex.flags.is_empty());
+    }
+
+    #[test]
+    fn parse_flags() {
+        let info = InfoFile::parse_str(full_toml()).unwrap();
+        assert_eq!(info.exercises[0].flags, vec!["-O2", "-Wstrict-aliasing=2"]);
+        assert!(info.exercises[1].flags.is_empty());
     }
 
     #[test]

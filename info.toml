@@ -16,9 +16,13 @@ welcome_message = """
   missing functionality.
 
   How it works:
+  - Your working copies live in my_exercises/ (ignored by git);
+    the originals in exercises/ stay pristine
   - Each exercise has a bug or a TODO for you to fix
   - Edit the .c file in your editor
   - clings will automatically recompile and verify your changes
+  - When an exercise passes, the official solution appears in
+    my_solutions/ so you can compare it with yours
 
   Commands: [n]ext [p]rev [h]int [l]ist [r]e-run [q]uit
 """
@@ -226,6 +230,9 @@ name = "ub_lab2"
 dir = "05_ub_lab"
 test = true
 sanitizers = true
+# Strict aliasing violations are only diagnosed with optimization enabled;
+# -Werror (in the base flags) turns the warning into a compile failure.
+flags = ["-O2", "-Wstrict-aliasing=2"]
 hints = [
   """
 How are the raw bits of the float being accessed?

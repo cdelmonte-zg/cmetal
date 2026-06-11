@@ -88,8 +88,14 @@ impl Compiler {
             .unwrap_or(false)
     }
 
-    pub fn compile(&self, source: &Path, output: &Path) -> Result<CompileResult> {
+    pub fn compile(
+        &self,
+        source: &Path,
+        output: &Path,
+        extra_flags: &[String],
+    ) -> Result<CompileResult> {
         let mut args = self.base_args();
+        args.extend_from_slice(extra_flags);
         args.push("-o".into());
         args.push(output.to_str().unwrap().into());
         args.push(source.to_str().unwrap().into());
@@ -97,8 +103,14 @@ impl Compiler {
         self.run_compiler(&args)
     }
 
-    pub fn compile_with_tests(&self, source: &Path, output: &Path) -> Result<CompileResult> {
+    pub fn compile_with_tests(
+        &self,
+        source: &Path,
+        output: &Path,
+        extra_flags: &[String],
+    ) -> Result<CompileResult> {
         let mut args = self.base_args();
+        args.extend_from_slice(extra_flags);
         args.push("-DTEST".into());
         args.push("-o".into());
         args.push(output.to_str().unwrap().into());
@@ -107,17 +119,23 @@ impl Compiler {
         self.run_compiler(&args)
     }
 
-    pub fn compile_with_sanitizers(&self, source: &Path, output: &Path) -> Result<CompileResult> {
-        let args = vec![
+    pub fn compile_with_sanitizers(
+        &self,
+        source: &Path,
+        output: &Path,
+        extra_flags: &[String],
+    ) -> Result<CompileResult> {
+        let mut args = vec![
             self.include_flag(),
             "-fsanitize=address,undefined".into(),
             "-fno-sanitize-recover=all".into(),
             "-g".into(),
             "-std=c11".into(),
-            "-o".into(),
-            output.to_str().unwrap().into(),
-            source.to_str().unwrap().into(),
         ];
+        args.extend_from_slice(extra_flags);
+        args.push("-o".into());
+        args.push(output.to_str().unwrap().into());
+        args.push(source.to_str().unwrap().into());
 
         self.run_compiler(&args)
     }

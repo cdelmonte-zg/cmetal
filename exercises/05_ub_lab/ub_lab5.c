@@ -77,6 +77,18 @@ int main(void) {
 #else
 #include "clings_test.h"
 
+/* Plant a nonzero pattern in freed heap memory so the next malloc() of a
+   Student hands back garbage instead of fresh zero-filled pages from the
+   OS. Without this, uninitialized fields would "happen" to be 0 and the
+   tests below would pass by luck. */
+static void dirty_heap(void) {
+    Student *p = malloc(sizeof(Student));
+    if (p) {
+        memset(p, 0xAA, sizeof(*p));
+        free(p);
+    }
+}
+
 TEST(test_create) {
     Student *s = student_new("Bob", 25);
     ASSERT(s != NULL);
@@ -86,6 +98,7 @@ TEST(test_create) {
 }
 
 TEST(test_default_score) {
+    dirty_heap();
     Student *s = student_new("Charlie", 30);
     ASSERT(s != NULL);
     /* After creation, score should be 0 (not garbage) */
@@ -94,6 +107,7 @@ TEST(test_default_score) {
 }
 
 TEST(test_default_active) {
+    dirty_heap();
     Student *s = student_new("Diana", 22);
     ASSERT(s != NULL);
     /* After creation, active should be 0 (not garbage) */
@@ -102,6 +116,7 @@ TEST(test_default_active) {
 }
 
 TEST(test_effective_score_inactive) {
+    dirty_heap();
     Student *s = student_new("Eve", 19);
     ASSERT(s != NULL);
     /* Inactive student should have effective score 0 */

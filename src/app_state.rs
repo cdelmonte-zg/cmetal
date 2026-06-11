@@ -158,6 +158,7 @@ mod tests {
             dir: "test".to_string(),
             test: false,
             sanitizers: false,
+            flags: Vec::new(),
             hint: None,
             hints: None,
         }
@@ -168,6 +169,7 @@ mod tests {
         Exercise {
             path: PathBuf::from(format!("/tmp/{name}.c")),
             solution_path: PathBuf::from(format!("/tmp/{name}_sol.c")),
+            reveal_path: PathBuf::from(format!("/tmp/{name}_revealed.c")),
             info,
         }
     }

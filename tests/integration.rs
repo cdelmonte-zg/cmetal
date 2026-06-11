@@ -229,6 +229,115 @@ fn cli_reset_clears_state() {
 }
 
 #[test]
+fn cli_solution_gated_until_solved() {
+    if !has_gcc() {
+        eprintln!("skipping: gcc not available");
+        return;
+    }
+
+    let tmp = TempDir::new().unwrap();
+    setup_project(
+        tmp.path(),
+        &[("ex1", "00_intro", "int main(void) { return 1; }\n")],
+    );
+    // The solution differs from the (broken) exercise
+    let solution = "int main(void) { return 0; }\n";
+    std::fs::write(tmp.path().join("solutions/00_intro/ex1.c"), solution).unwrap();
+
+    // Exercise still broken: solution must stay locked
+    let output = Command::new(clings_bin())
+        .args(["solution", "ex1"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "solution must be locked while failing");
+    assert!(
+        !tmp.path().join("my_solutions/00_intro/ex1.c").exists(),
+        "solution must not be revealed while the exercise fails"
+    );
+
+    // "Solve" the exercise in the workspace, then ask again
+    std::fs::write(tmp.path().join("my_exercises/00_intro/ex1.c"), solution).unwrap();
+    let output = Command::new(clings_bin())
+        .args(["solution", "ex1"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "solution should unlock once the exercise passes, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let revealed = tmp.path().join("my_solutions/00_intro/ex1.c");
+    assert_eq!(std::fs::read_to_string(&revealed).unwrap(), solution);
+}
+
+#[test]
+fn cli_creates_workspace_copies() {
+    if !has_gcc() {
+        eprintln!("skipping: gcc not available");
+        return;
+    }
+
+    let tmp = TempDir::new().unwrap();
+    let code = "#include <stdio.h>\nint main(void) { return 0; }\n";
+    setup_project(tmp.path(), &[("hello", "00_intro", code)]);
+
+    let output = Command::new(clings_bin())
+        .arg("list")
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    let work_file = tmp.path().join("my_exercises/00_intro/hello.c");
+    assert!(work_file.exists(), "workspace copy should be created");
+    assert_eq!(std::fs::read_to_string(&work_file).unwrap(), code);
+
+    // A second run must not overwrite the learner's edits
+    std::fs::write(&work_file, "// my work\n").unwrap();
+    let output = Command::new(clings_bin())
+        .arg("list")
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert_eq!(
+        std::fs::read_to_string(&work_file).unwrap(),
+        "// my work\n",
+        "existing workspace files must not be overwritten"
+    );
+}
+
+#[test]
+fn cli_reset_restores_workspace() {
+    if !has_gcc() {
+        eprintln!("skipping: gcc not available");
+        return;
+    }
+
+    let tmp = TempDir::new().unwrap();
+    let code = "#include <stdio.h>\nint main(void) { return 0; }\n";
+    setup_project(tmp.path(), &[("hello", "00_intro", code)]);
+
+    let work_file = tmp.path().join("my_exercises/00_intro/hello.c");
+    std::fs::create_dir_all(work_file.parent().unwrap()).unwrap();
+    std::fs::write(&work_file, "// solved\n").unwrap();
+
+    let output = Command::new(clings_bin())
+        .arg("reset")
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "reset should succeed");
+    assert_eq!(
+        std::fs::read_to_string(&work_file).unwrap(),
+        code,
+        "reset should restore the pristine exercise"
+    );
+}
+
+#[test]
 fn cli_run_specific_exercise() {
     if !has_gcc() {
         eprintln!("skipping: gcc not available");

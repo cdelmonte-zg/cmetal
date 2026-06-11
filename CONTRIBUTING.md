@@ -2,10 +2,18 @@
 
 Thanks for your interest in contributing!
 
+> **Note:** learners never edit `exercises/` — clings copies it into the
+> gitignored `my_exercises/` workspace on first run. `exercises/` must
+> only ever contain the broken, unsolved versions.
+
 ## Adding an exercise
 
 1. Create the exercise file in `exercises/<topic_dir>/<name>.c`
-2. Create the matching solution in `solutions/<topic_dir>/<name>.c`
+2. Create the matching solution in `solutions/<topic_dir>/<name>.c`,
+   then run `python3 scripts/solutions_codec.py pack` — solutions are
+   stored obfuscated as `.c.enc` so learners aren't spoiled by accident
+   (clings reveals them in `my_solutions/` once an exercise passes).
+   To edit existing solutions, run `... unpack` first, edit, re-`pack`.
 3. Add an entry in `info.toml` with progressive hints
 
 ### Naming
@@ -47,6 +55,7 @@ name = "pointers3"
 dir = "01_pointers"
 test = true          # compile with -DTEST and run tests
 sanitizers = false   # compile with ASan/UBSan
+# flags = ["-O2"]    # optional extra compiler flags for this exercise
 hints = [
     "First hint: the gentlest nudge",
     "Second hint: more specific",
@@ -61,16 +70,32 @@ hints = [
 - Must pass with `-fsanitize=address,undefined` when sanitizers are enabled
 - Stick to C11 standard -- no POSIX-specific features
 
+### The exercise invariant
+
+Every exercise must **fail** verification as shipped, and every solution
+must **pass** it. An exercise that is already green teaches nothing;
+CI enforces this on every push and PR:
+
+```bash
+python3 scripts/check_exercises.py
+```
+
+This replicates the exact `clings` verification pipeline (base flags plus
+the per-exercise `test`, `sanitizers` and `flags` settings from
+`info.toml`). Run it whenever you add or change an exercise — and before
+pushing, so you don't accidentally publish exercises in their solved
+state. You can have git run it automatically on every push:
+
+```bash
+git config core.hooksPath scripts/hooks
+```
+
 ## Running tests locally
 
 ```bash
-cargo test                # Rust unit + integration tests (32 tests)
+cargo test                # Rust unit + integration tests
 cargo clippy -- -D warnings
-
-# Verify all C solutions manually
-find solutions -name '*.c' | sort | while read -r f; do
-  gcc -Wall -Wextra -Werror -pedantic -std=c11 -Iinclude -DTEST -o /tmp/test_bin "$f" && /tmp/test_bin
-done
+python3 scripts/check_exercises.py   # C exercise/solution invariant
 ```
 
 ## Code style

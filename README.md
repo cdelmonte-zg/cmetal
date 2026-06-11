@@ -48,9 +48,19 @@ cargo install --path .
 clings
 ```
 
+On first run clings copies the exercises into `my_exercises/` — that's
+where you work. The directory is gitignored, so the pristine exercises
+in `exercises/` stay untouched and your progress never ends up in a
+commit. `clings reset` restores the pristine copies.
+
+Official solutions are stored obfuscated (no accidental spoilers while
+browsing the repo). When an exercise passes, its solution is revealed
+in `my_solutions/` so you can compare it with yours — or run
+`clings solution <name>` for any exercise you've already solved.
+
 Each exercise has a bug or a `TODO` for you to fix.
-Open the `.c` file in your editor, save your changes,
-and clings will automatically recompile and verify.
+Open the `.c` file under `my_exercises/` in your editor, save your
+changes, and clings will automatically recompile and verify.
 
 ### Interactive commands
 
