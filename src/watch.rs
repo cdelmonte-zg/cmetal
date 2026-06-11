@@ -72,6 +72,12 @@ pub fn run_watch(
             println!("  {line}");
         }
         println!();
+        println!(
+            "  clings v{} — compiler: {}",
+            env!("CARGO_PKG_VERSION"),
+            compiler.kind()
+        );
+        println!();
         println!("  Press any key to start...");
         crossterm::terminal::enable_raw_mode()?;
         let _ = event::read();
@@ -246,7 +252,8 @@ fn print_watch_header(state: &AppState, compiler: &Compiler) {
     let (done, total) = state.progress();
     println!("\r");
     term::print_header(&format!(
-        "clings [{}]  Exercise {} of {}",
+        "clings v{} [{}]  Exercise {} of {}",
+        env!("CARGO_PKG_VERSION"),
         compiler.kind(),
         state.current_index + 1,
         total
