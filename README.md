@@ -37,7 +37,13 @@ the exercises are pure C11.
 
 ## Install
 
-### Option 1: prebuilt binary (no Rust required)
+### Option 1: Homebrew (macOS / Linux, no Rust required)
+
+```bash
+brew install cdelmonte-zg/tap/clings
+```
+
+### Option 2: prebuilt binary (no Rust required)
 
 Download the archive for your platform from the
 [latest release](https://github.com/cdelmonte-zg/clings/releases/latest),
@@ -60,7 +66,7 @@ clings
 > the first run, clear the quarantine flag with
 > `xattr -d com.apple.quarantine $(which clings)`.
 
-### Option 2: build from source
+### Option 3: build from source
 
 ```bash
 git clone https://github.com/cdelmonte-zg/clings.git
