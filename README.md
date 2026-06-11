@@ -78,9 +78,10 @@ changes, and clings will automatically recompile and verify.
 ```bash
 clings run <name>            # run a specific exercise
 clings hint <name> --level 2 # show first 2 hints
+clings solution <name>       # reveal the solution (once solved)
 clings list                  # list exercises and progress
 clings verify                # verify all exercises
-clings reset                 # clear progress, start fresh
+clings reset                 # clear progress, restore pristine exercises
 ```
 
 ---
@@ -88,7 +89,7 @@ clings reset                 # clear progress, start fresh
 ## How it works
 
 1. clings reads `info.toml` to discover exercises and their metadata.
-2. In watch mode it monitors the `exercises/` directory for file changes.
+2. In watch mode it monitors your `my_exercises/` workspace for file changes.
 3. On each save it compiles the exercise with `gcc` (or `clang`),
    runs the binary, and optionally runs unit tests (`-DTEST`)
    and sanitizers (`-fsanitize=address,undefined`).
@@ -128,9 +129,11 @@ clings reset                 # clear progress, start fresh
 ## Development
 
 ```bash
-cargo test             # 24 unit + 8 integration tests
-cargo clippy           # lint
-cargo build --release  # optimized build
+cargo test                           # Rust unit + integration tests
+cargo clippy                         # lint
+cargo build --release                # optimized build
+python3 scripts/check_exercises.py   # every exercise must fail as
+                                     # shipped, every solution must pass
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add exercises.
