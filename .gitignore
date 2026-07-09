@@ -3,6 +3,9 @@
 /my_solutions
 .clings-state.txt
 
+# mdBook rendered output (book/src is the source)
+book/book/
+
 # Plaintext solutions only exist locally while editing them
 # (scripts/solutions_codec.py unpack/pack); the repo holds .c.enc files.
 solutions/**/*.c
