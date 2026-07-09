@@ -1,4 +1,5 @@
 [![CI](https://github.com/cdelmonte-zg/clings/actions/workflows/ci.yml/badge.svg)](https://github.com/cdelmonte-zg/clings/actions/workflows/ci.yml)
+[![Docs](https://github.com/cdelmonte-zg/clings/actions/workflows/pages.yml/badge.svg)](https://cdelmonte-zg.github.io/clings/)
 
 ```
        _ _
@@ -16,6 +17,9 @@ fix broken C code, learn by doing.
 
 The CLI is written in Rust for a fast, cross-platform experience;
 the exercises are pure C11.
+
+📖 **[Documentation](https://cdelmonte-zg.github.io/clings/)** — install,
+the watch-mode loop, the curriculum, and how verification works.
 
 ---
 
