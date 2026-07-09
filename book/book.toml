@@ -1,0 +1,26 @@
+[book]
+title = "clings"
+description = "Small exercises to learn advanced C concepts, inspired by rustlings."
+authors = ["Christian Del Monte"]
+language = "en"
+
+[output.html]
+default-theme = "rust"
+preferred-dark-theme = "ayu"
+git-repository-url = "https://github.com/cdelmonte-zg/clings"
+edit-url-template = "https://github.com/cdelmonte-zg/clings/edit/main/book/{path}"
+no-section-label = true
+
+[output.html.fold]
+enable = true
+level = 1
+
+[output.html.search]
+enable = true
+
+# VISION.md and CONTRIBUTING.md are symlinked in as project/roadmap.md and
+# guides/contributing.md; their repo-root relative links (e.g. VISION ->
+# CONTRIBUTING.md) resolve to these redirects inside the book.
+[output.html.redirect]
+"/project/CONTRIBUTING.html" = "../guides/contributing.html"
+"/guides/VISION.html" = "../project/roadmap.html"
