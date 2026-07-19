@@ -14,8 +14,9 @@
 //      just keeps bumping — the demo walks straight off the end and
 //      AddressSanitizer names the overflow.
 //
-// Contract: arena_alloc returns a pointer aligned for any object type,
-// or NULL when the request doesn't fit (the arena stays usable).
+// Contract: arena_alloc returns a pointer suitably aligned for any
+// fundamentally aligned type, or NULL when the request doesn't fit
+// (the arena stays usable).
 // Watch the capacity check itself: `used + size > capacity` can
 // overflow — compare in the other direction (encodings2's lesson).
 //
@@ -36,7 +37,8 @@ typedef struct {
     size_t used;
 } Arena;
 
-// The strictest alignment any C object needs.
+// Alignment suitable for any fundamentally aligned C object
+// (over-aligned types via _Alignas are out of scope here).
 #define ARENA_ALIGN _Alignof(max_align_t)
 
 // Returns 0, or -1 if the backing allocation fails.
@@ -50,8 +52,9 @@ int arena_init(Arena *a, size_t capacity) {
     return 0;
 }
 
-// Returns a suitably aligned pointer to `size` fresh bytes, or NULL
-// when the request doesn't fit. The arena stays usable either way.
+// Returns a pointer suitably aligned for fundamentally aligned types,
+// or NULL when the request doesn't fit. The arena stays usable
+// either way.
 void *arena_alloc(Arena *a, size_t size) {
     // BUG: no alignment — after a 1-byte allocation the cursor is odd,
     // and the next caller gets a misaligned pointer.

@@ -37,8 +37,14 @@
 typedef struct Block {
     struct Block *next; /* older generation, or NULL */
     size_t used;
-    uint8_t data[]; /* C11 flexible array member: the payload */
+    /* The payload must START suitably aligned: without _Alignas the
+     * flexible array member has alignment 1 and the 16-byte offset on
+     * our ABIs would be a coincidence, not a property of the type. */
+    _Alignas(max_align_t) uint8_t data[]; /* C11 flexible array member */
 } Block;
+
+_Static_assert(offsetof(Block, data) % ARENA_ALIGN == 0,
+               "arena payload must be suitably aligned");
 
 typedef struct {
     Block *head; /* newest block; allocation happens here */
