@@ -8,8 +8,8 @@
 //    BYTES, so the base must be cast to char* / unsigned char*.
 // 2. The swap buffer is a fixed unsigned char tmp[64]. A sort that
 //    claims to handle any element size must size the buffer from
-//    `size`: allocate it with CLINGS_MALLOC (an alias of malloc that
-//    the tests can force to fail — see clings_alloc.h). For bigger
+//    `size`: allocate it with CMETAL_MALLOC (an alias of malloc that
+//    the tests can force to fail — see cmetal_alloc.h). For bigger
 //    elements a fixed buffer silently overflows; big_record_t below is
 //    bigger than 64 bytes for exactly this reason.
 // 3. The contract: allocation can fail, so bubble_sort must return
@@ -21,7 +21,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "clings_alloc.h"
+#include "cmetal_alloc.h"
 #include <string.h>
 #include <stddef.h>
 
@@ -103,7 +103,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_sort_ascending) {
     int a[] = {5, 3, 8, 1, 9, 2};
@@ -152,7 +152,7 @@ TEST(test_sort_large_elements) {
 
 TEST(test_sort_reports_allocation_failure) {
     int a[] = {3, 1, 2};
-    clings_fail_next_alloc();          /* the swap-buffer malloc fails */
+    cmetal_fail_next_alloc();          /* the swap-buffer malloc fails */
     ASSERT_EQ(bubble_sort(a, 3, sizeof(int), cmp_int_asc), -1);
     /* array untouched on failure */
     ASSERT_EQ(a[0], 3);

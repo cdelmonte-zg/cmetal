@@ -12,7 +12,7 @@
 // NOTE on portability: sizes and alignments are ABI facts, not C rules.
 // C11 only guarantees that members are laid out in declaration order
 // and that there is no padding before the first one. The numbers in
-// this exercise assume the mainstream 64-bit ABIs clings targets
+// this exercise assume the mainstream 64-bit ABIs cmetal targets
 // (x86-64 and AArch64 on Linux/macOS); these asserts make that
 // assumption explicit.
 _Static_assert(sizeof(int) == 4 && sizeof(double) == 8,
@@ -65,7 +65,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_packed_point_size) {
     // Two ints should be exactly 8 bytes (no padding needed)

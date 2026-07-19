@@ -107,7 +107,7 @@ int main(void) {
 }
 
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_parse_valid) {
     struct error err;

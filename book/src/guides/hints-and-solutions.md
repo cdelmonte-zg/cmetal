@@ -1,6 +1,6 @@
 # Hints and solutions
 
-clings is built so you can get exactly as much help as you want, and no more.
+cmetal is built so you can get exactly as much help as you want, and no more.
 Two mechanisms — progressive hints and earned solutions — sit on a spectrum
 from "gentle nudge" to "here is the answer", and you control where on it you
 land.
@@ -15,8 +15,8 @@ one — and you decide how far down the ladder to go.
 From the CLI you can ask for a specific depth without entering watch mode:
 
 ```bash
-clings hint pointers1              # first hint
-clings hint pointers1 --level 2    # first two hints
+cmetal hint pointers1              # first hint
+cmetal hint pointers1 --level 2    # first two hints
 ```
 
 The idea is deliberate: a good first hint reframes the problem
@@ -37,12 +37,12 @@ Two design choices keep this honest:
   way past a problem — the file simply isn't there until you've earned it.
 - **Solutions are stored obfuscated on disk** (`.c.enc` files), so casually
   browsing the repository on GitHub or in your editor never spoils an answer.
-  clings decodes the one you earned into `my_solutions/` when you pass.
+  cmetal decodes the one you earned into `my_solutions/` when you pass.
 
 To re-open a solution you've already earned:
 
 ```bash
-clings solution pointers2
+cmetal solution pointers2
 ```
 
 ## Starting over
@@ -51,15 +51,15 @@ To redo a single exercise — pristine file back, marked pending again,
 everything else kept:
 
 ```bash
-clings reset pointers1
+cmetal reset pointers1
 ```
 
 For a clean slate — pristine exercises, no revealed solutions, progress
 reset — use it without a name:
 
 ```bash
-clings reset
+cmetal reset
 ```
 
 That restores `my_exercises/` from the pristine `exercises/` and clears
-`.clings-state.txt`. Your workspace (or checkout) is otherwise untouched.
+`.cmetal-state.txt`. Your workspace (or checkout) is otherwise untouched.

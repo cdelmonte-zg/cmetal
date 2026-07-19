@@ -12,7 +12,7 @@
 // Contract:
 //   - attr_copy produces an INDEPENDENT deep copy; it returns 0, or -1
 //     if allocation fails, leaving *dst untouched. (Allocation goes
-//     through CLINGS_MALLOC, so the tests can force that failure: a
+//     through CMETAL_MALLOC, so the tests can force that failure: a
 //     shallow copy that allocates nothing cannot honor this contract.)
 //   - attr_set_number / attr_set_text release the previous payload
 //     before installing the new one.
@@ -25,7 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "clings_alloc.h"
+#include "cmetal_alloc.h"
 
 typedef enum {
     ATTR_NONE,
@@ -52,7 +52,7 @@ Attr attr_number(double n) {
 // Owns a copy of s; returns ATTR_NONE if allocation fails.
 Attr attr_text(const char *s) {
     size_t len = strlen(s);
-    char *copy = CLINGS_MALLOC(len + 1);
+    char *copy = CMETAL_MALLOC(len + 1);
     if (!copy) {
         return attr_none();
     }
@@ -89,7 +89,7 @@ void attr_set_number(Attr *a, double n) {
 // (keeps the old value if allocation fails).
 void attr_set_text(Attr *a, const char *s) {
     size_t len = strlen(s);
-    char *copy = CLINGS_MALLOC(len + 1);
+    char *copy = CMETAL_MALLOC(len + 1);
     if (!copy) {
         return;
     }
@@ -124,7 +124,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_copy_is_deep) {
     Attr a = attr_text("shared?");
@@ -144,7 +144,7 @@ TEST(test_copy_failure_leaves_dst_untouched) {
     // allocates nothing, "succeeds", and fails this test.
     Attr a = attr_text("needs a buffer");
     Attr b = attr_number(7.0);
-    clings_fail_next_alloc();
+    cmetal_fail_next_alloc();
     ASSERT_EQ(attr_copy(&b, &a), -1);
     ASSERT_EQ(b.type, ATTR_NUMBER);
     ASSERT(b.as.number == 7.0);
@@ -154,9 +154,9 @@ TEST(test_copy_failure_leaves_dst_untouched) {
 TEST(test_copy_of_number_needs_no_allocation) {
     Attr a = attr_number(3.5);
     Attr b = attr_none();
-    clings_fail_next_alloc();
+    cmetal_fail_next_alloc();
     ASSERT_EQ(attr_copy(&b, &a), 0); /* nothing to allocate */
-    clings_alloc_reset();
+    cmetal_alloc_reset();
     ASSERT_EQ(b.type, ATTR_NUMBER);
     ASSERT(b.as.number == 3.5);
 }
@@ -174,7 +174,7 @@ TEST(test_transitions_replace_the_value) {
 
 TEST(test_set_text_keeps_old_value_on_failure) {
     Attr slot = attr_text("keep me");
-    clings_fail_next_alloc();
+    cmetal_fail_next_alloc();
     attr_set_text(&slot, "never arrives");
     ASSERT_EQ(slot.type, ATTR_TEXT);
     ASSERT_STR_EQ(slot.as.text, "keep me");

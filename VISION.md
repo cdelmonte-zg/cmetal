@@ -1,6 +1,6 @@
 # Vision
 
-**clings wants to become the reference hands-on path from "I know C syntax"
+**cmetal wants to become the reference hands-on path from "I know C syntax"
 to "I write C I can defend in a code review" — increasingly through the
 problems found in language implementations and binary formats.**
 
@@ -8,18 +8,18 @@ C is taught everywhere, but almost always up to the point where programs
 *compile*. The hard part of the language starts after that: undefined
 behavior, aliasing, lifetime of memory, const discipline, error handling
 that survives real call chains. Books explain these topics; almost nothing
-lets you *practice* them with immediate feedback. That is the gap clings
+lets you *practice* them with immediate feedback. That is the gap cmetal
 exists to fill — the way rustlings did for Rust, but for the parts of C
 that actually hurt.
 
 ## Where we are
 
-Today clings ships 42 exercises across 14 topics (pointers, memory, UB,
+Today cmetal ships 42 exercises across 14 topics (pointers, memory, UB,
 strings, structs, function pointers, const, error handling, bitwise), a
 watch-mode TUI with progressive hints, sanitizer-backed verification,
 solutions that unlock only after you solve the exercise, and a
-self-contained distribution: the binary embeds the curriculum, `clings
-init` materializes a private workspace with no git clone, and `clings
+self-contained distribution: the binary embeds the curriculum, `cmetal
+init` materializes a private workspace with no git clone, and `cmetal
 update` delivers new exercises without ever overwriting your work.
 
 ## Design principles
@@ -45,7 +45,7 @@ These are the non-negotiables that every future change must respect:
 
 ### The direction — the C of language implementations
 
-clings is developing a focused implementation track around the C used
+cmetal is developing a focused implementation track around the C used
 in interpreters, compilers, and binary formats. That domain covers much
 of hard C — tagged unions, hash tables, arenas, garbage collectors,
 bytecode — in pure C11, entirely in userspace, where sanitizers give
@@ -56,7 +56,7 @@ work through an introductory book first and come back.
 The general advanced-C curriculum stays as it is: it is the foundations
 tier the implementation track builds on.
 
-One editorial rule keeps clings a C trainer rather than an interpreter
+One editorial rule keeps cmetal a C trainer rather than an interpreter
 tutorial in exercise form: **every exercise must be useful to someone
 who will never build an interpreter**. Endian-safe I/O belongs in any
 protocol; a defensive varint decoder is any parser; an arena is a
@@ -102,9 +102,9 @@ telling you" notes attached to each exercise's hints.
 
 - **C23 track** as compiler support matures (`nullptr`, `constexpr`,
   checked arithmetic).
-- **Packaged distribution** so `clings` is one install command away —
+- **Packaged distribution** so `cmetal` is one install command away —
   Homebrew and the self-contained binary exist. crates.io needs the
-  name question settled first: the `clings` crate name is taken, and
+  name question settled first: the `cmetal` crate name is taken, and
   several projects in this niche share the name — a rename is under
   consideration as part of the repositioning.
 - **Community exercise pipeline:** contributing a new exercise should be
@@ -117,10 +117,10 @@ telling you" notes attached to each exercise's hints.
 - Teaching C syntax from zero — start with any introductory course, then
   come here.
 - Teaching compiler theory — parsing algorithms and type systems have
-  their own excellent books; clings teaches the C those books assume
+  their own excellent books; cmetal teaches the C those books assume
   you already have.
 - C++ — a different language with different lessons.
-- Becoming an IDE, a build system, or a general-purpose C tutor. clings
+- Becoming an IDE, a build system, or a general-purpose C tutor. cmetal
   is a sharp tool for one job: deliberate practice on hard C.
 
 ## How to help

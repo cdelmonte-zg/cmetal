@@ -11,7 +11,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "clings_alloc.h"
+#include "cmetal_alloc.h"
 
 typedef struct {
     int *data;
@@ -47,7 +47,7 @@ void stack_push(Stack *s, int value) {
         //
         // TODO: Use a temporary pointer, and return -1 without touching
         // the stack if the allocation failed.
-        s->data = CLINGS_REALLOC(s->data, sizeof(int) * (size_t)s->capacity);
+        s->data = CMETAL_REALLOC(s->data, sizeof(int) * (size_t)s->capacity);
     }
     s->data[s->top] = value;
     s->top++;
@@ -98,7 +98,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_create_and_destroy) {
     Stack *s = stack_create(4);
@@ -155,7 +155,7 @@ TEST(test_push_failure_leaves_stack_untouched) {
     ASSERT_EQ(stack_push(s, 1), 0);
     ASSERT_EQ(stack_push(s, 2), 0);
     int *data_before = s->data;
-    clings_fail_next_alloc();          /* the growth realloc will fail */
+    cmetal_fail_next_alloc();          /* the growth realloc will fail */
     ASSERT_EQ(stack_push(s, 3), -1);
     ASSERT_EQ(stack_size(s), 2);
     ASSERT_EQ(s->capacity, 2);

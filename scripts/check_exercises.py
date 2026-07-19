@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Enforce the clings exercise invariant:
+"""Enforce the cmetal exercise invariant:
 
   - every file in exercises/  must FAIL verification as shipped,
   - every file in solutions/  must PASS verification.

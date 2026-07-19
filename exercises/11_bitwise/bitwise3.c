@@ -68,7 +68,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_next_pow2_five) {
     ASSERT_EQ(next_power_of_two(5), 8u);

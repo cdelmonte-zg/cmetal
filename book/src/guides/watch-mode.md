@@ -1,6 +1,6 @@
 # Watch mode: the core loop
 
-Running `clings` with no arguments starts **watch mode** — the experience the
+Running `cmetal` with no arguments starts **watch mode** — the experience the
 tool is built around. It picks up at your first unsolved exercise and stays
 there, watching the file, until you solve it.
 
@@ -9,7 +9,7 @@ there, watching the file, until you solve it.
 1. It shows the current exercise: its name, the path to its `.c` file under
    `my_exercises/`, and its current status.
 2. It watches `my_exercises/` for changes.
-3. Every time you **save** the exercise file, clings recompiles it, runs it,
+3. Every time you **save** the exercise file, cmetal recompiles it, runs it,
    and re-verifies — no keypress needed. The screen updates in place with the
    new result (a compile error, a failed assertion, a sanitizer report, or a
    green pass).
@@ -52,9 +52,9 @@ a compiler with `--compiler`, or you just want to force a fresh run.
 ## Progress persists
 
 Your position and which exercises you've solved are written to
-`.clings-state.txt` in your workspace. Quit whenever; the next `clings` resumes
+`.cmetal-state.txt` in your workspace. Quit whenever; the next `cmetal` resumes
 exactly where you were. To wipe it and start clean, use
-[`clings reset`](cli.md).
+[`cmetal reset`](cli.md).
 
 ## When you don't want the loop
 

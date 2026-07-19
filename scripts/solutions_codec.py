@@ -3,7 +3,7 @@
 
 Solutions live in the repo XOR-ed and base64-encoded so a learner browsing
 the tree doesn't get spoiled by accident. This is NOT security — the key
-ships with the repo — it's a spoiler shield. clings decodes a solution and
+ships with the repo — it's a spoiler shield. cmetal decodes a solution and
 reveals it in my_solutions/ once the exercise passes verification.
 
 The encoding must stay in sync with `decode()` in src/solutions.rs.

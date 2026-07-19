@@ -27,7 +27,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_five_elements) {
     int a[] = {10, 20, 30, 40, 50};

@@ -8,7 +8,7 @@
 // The same compiler can legally produce different results at different
 // optimization levels.
 //
-// gcc and clang diagnose these patterns with -Wall, and clings compiles
+// gcc and clang diagnose these patterns with -Wall, and cmetal compiles
 // with -Werror, so this file does not even build until each expression
 // is untangled into well-defined statements.
 
@@ -58,7 +58,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_fill_from_zero) {
     int arr[4] = {-1, -1, -1, -1};

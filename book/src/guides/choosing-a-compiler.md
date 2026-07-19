@@ -1,15 +1,15 @@
 # Choosing a compiler
 
-clings compiles the exercises with your real system toolchain — gcc or clang —
+cmetal compiles the exercises with your real system toolchain — gcc or clang —
 not a bundled or emulated one. Which compiler you use is a genuine part of the
 lesson: the two disagree, on purpose, about some of these bugs.
 
 ## Picking one
 
-By default clings uses gcc. Pick the other at startup:
+By default cmetal uses gcc. Pick the other at startup:
 
 ```bash
-clings --compiler clang
+cmetal --compiler clang
 ```
 
 The choice applies to every exercise for that session and is shown on the
@@ -17,8 +17,8 @@ welcome screen and in the watch header, so you always know which compiler's
 diagnostics you're reading. The single-exercise subcommands take it too:
 
 ```bash
-clings run bitwise2 --compiler clang
-clings verify --compiler clang
+cmetal run bitwise2 --compiler clang
+cmetal verify --compiler clang
 ```
 
 ## Why the compiler matters
@@ -32,10 +32,10 @@ cleanly under clang and pass without teaching anything.
 ## Compiler-restricted exercises
 
 To avoid that hollow pass, an exercise can declare which compilers can actually
-detect its bug, via `compilers = [...]` in `info.toml`. When you run clings with
+detect its bug, via `compilers = [...]` in `info.toml`. When you run cmetal with
 a compiler that isn't in the list, that exercise is **skipped** rather than
 shown as solved — it appears as "requires gcc" (or clang) in
-[`clings list`](cli.md).
+[`cmetal list`](cli.md).
 
 This keeps the invariant honest: an exercise only counts as passed on a
 compiler that could have failed it. The mechanism is described from the

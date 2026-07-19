@@ -50,7 +50,7 @@ jobs:
       - name: Simulate full learner journey
         run: >
           python3 scripts/simulate_learner.py
-          --clings target/release/clings
+          --binary target/release/cmetal
           --compiler ${{ matrix.compiler }}
 
   build-and-test:

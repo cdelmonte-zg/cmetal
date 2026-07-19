@@ -1,4 +1,4 @@
-// intro1.c - Welcome to clings!
+// intro1.c - Welcome to cmetal!
 //
 // This is your first exercise. The program compiles but doesn't
 // work correctly — it exits with an error code.
@@ -11,7 +11,7 @@
 #include <stdio.h>
 
 int main(void) {
-    printf("Welcome to clings! Let's learn some advanced C.\n");
+    printf("Welcome to cmetal! Let's learn some advanced C.\n");
 
     return 1;  // BUG: wrong exit code
 }

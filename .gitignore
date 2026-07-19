@@ -1,7 +1,7 @@
 /target
 /my_exercises
 /my_solutions
-.clings-state.txt
+.cmetal-state.txt
 
 # mdBook rendered output (book/src is the source)
 book/book/

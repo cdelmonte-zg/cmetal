@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Parser)]
 #[command(
-    name = "clings",
+    name = "cmetal",
     version,
     about = "Small exercises to learn advanced C concepts"
 )]
@@ -31,9 +31,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Create a self-contained clings workspace (no git clone needed)
+    /// Create a self-contained cmetal workspace (no git clone needed)
     Init {
-        /// Directory to create the workspace in (default: ./clings-workspace)
+        /// Directory to create the workspace in (default: ./cmetal-workspace)
         dir: Option<PathBuf>,
     },
     /// Run a specific exercise
@@ -85,8 +85,8 @@ fn unpack_curriculum(dest: &Path) -> Result<()> {
         .context("Failed to extract the embedded curriculum")
 }
 
-/// Stamps `.clings/manifest.json` with this binary's curriculum
-/// version. The manifest is what `clings update` reads to decide
+/// Stamps `.cmetal/manifest.json` with this binary's curriculum
+/// version. The manifest is what `cmetal update` reads to decide
 /// whether (and in which direction) an update applies.
 fn write_manifest(meta_dir: &Path) -> Result<()> {
     std::fs::create_dir_all(meta_dir)?;
@@ -118,16 +118,16 @@ fn semver_triple(v: &str) -> Option<(u64, u64, u64)> {
     Some((it.next()??, it.next()??, it.next()??))
 }
 
-/// `clings init` extracts the embedded curriculum into a directory.
+/// `cmetal init` extracts the embedded curriculum into a directory.
 /// The layout is exactly the repo layout the engine already understands
 /// (info.toml at the root), so a workspace and a git clone are
 /// interchangeable — the clone remains the contributor/compat mode.
 fn cmd_init(dir: Option<PathBuf>) -> Result<()> {
-    let target = dir.unwrap_or_else(|| PathBuf::from("clings-workspace"));
+    let target = dir.unwrap_or_else(|| PathBuf::from("cmetal-workspace"));
     // Never extract into a directory that already has content: the
     // archive contains entries named exercises/, solutions/, include/
     // and info.toml, and unpacking must not be able to clobber a
-    // user's files (think `clings init .` in a project directory).
+    // user's files (think `cmetal init .` in a project directory).
     // No --force escape hatch until an explicit update semantics
     // exists.
     if target.exists() {
@@ -144,7 +144,7 @@ fn cmd_init(dir: Option<PathBuf>) -> Result<()> {
     // The guard above proved the target started empty, so on any
     // failure we can remove it wholesale: a half-extracted workspace
     // would otherwise trip the same guard on retry and be orphaned.
-    let result = unpack_curriculum(&target).and_then(|()| write_manifest(&target.join(".clings")));
+    let result = unpack_curriculum(&target).and_then(|()| write_manifest(&target.join(".cmetal")));
     if let Err(e) = result {
         let _ = std::fs::remove_dir_all(&target);
         return Err(e.context(format!(
@@ -158,16 +158,16 @@ fn cmd_init(dir: Option<PathBuf>) -> Result<()> {
     println!();
     println!("  Next steps:");
     println!("    cd {}", target.display());
-    println!("    clings");
+    println!("    cmetal");
     println!();
-    println!("  clings copies the exercises into my_exercises/ on first run —");
+    println!("  cmetal copies the exercises into my_exercises/ on first run —");
     println!("  that's where you work. Your progress lives in this directory.");
     println!();
     Ok(())
 }
 
-/// A previous `clings update` interrupted mid-swap leaves complete old
-/// parts in `.clings/backup` (each part moves with a single rename, so
+/// A previous `cmetal update` interrupted mid-swap leaves complete old
+/// parts in `.cmetal/backup` (each part moves with a single rename, so
 /// a part is never half-copied). Restore every part the workspace is
 /// missing; where both exist the workspace's version is the complete
 /// new part, so it wins. Only then is the backup safe to drop.
@@ -239,9 +239,9 @@ fn swap_curriculum(base_dir: &Path, staging: &Path, backup: &Path) -> Result<()>
     // Phase B: staged parts into place.
     let mut undo_installs = Vec::new();
     for part in &parts {
-        // Test seam: CLINGS_TEST_FAIL_INSTALL=<part> simulates a rename
-        // failure mid-swap (same philosophy as clings_alloc.h).
-        let install = if std::env::var_os("CLINGS_TEST_FAIL_INSTALL")
+        // Test seam: CMETAL_TEST_FAIL_INSTALL=<part> simulates a rename
+        // failure mid-swap (same philosophy as cmetal_alloc.h).
+        let install = if std::env::var_os("CMETAL_TEST_FAIL_INSTALL")
             .is_some_and(|v| v.as_os_str() == part.as_os_str())
         {
             Err(std::io::Error::other("injected failure (test seam)"))
@@ -254,7 +254,7 @@ fn swap_curriculum(base_dir: &Path, staging: &Path, backup: &Path) -> Result<()>
             remove_if_empty(backup);
             return Err(e).context(format!(
                 "Failed to install {} — the update was rolled back; if \
-                 anything is left in {}, the next `clings update` recovers it",
+                 anything is left in {}, the next `cmetal update` recovers it",
                 part.to_string_lossy(),
                 backup.display()
             ));
@@ -267,7 +267,7 @@ fn swap_curriculum(base_dir: &Path, staging: &Path, backup: &Path) -> Result<()>
     Ok(())
 }
 
-/// `clings update` reconciles an init-created workspace with the
+/// `cmetal update` reconciles an init-created workspace with the
 /// curriculum embedded in THIS binary (upgrading the binary is how new
 /// exercises arrive — no git involved).
 ///
@@ -277,17 +277,25 @@ fn swap_curriculum(base_dir: &Path, staging: &Path, backup: &Path) -> Result<()>
 ///     file) is refreshed to the new pristine version — and only AFTER
 ///     the curriculum swap has succeeded;
 ///   - working copies with edits are kept; if their exercise changed
-///     upstream, that is reported (see `clings diff` / `clings reset`);
+///     upstream, that is reported (see `cmetal diff` / `cmetal reset`);
 ///   - the pristine curriculum is replaced by `swap_curriculum` (staged,
 ///     rolled back on failure), and leftovers of a previously
 ///     interrupted update are recovered before anything else happens.
 fn cmd_update(base_dir: &Path) -> Result<()> {
-    let meta_dir = base_dir.join(".clings");
+    let meta_dir = base_dir.join(".cmetal");
+    // Pre-rename workspaces carry their metadata in .clings: adopt it
+    // before anything else looks for it.
+    let legacy_meta = base_dir.join(".clings");
+    if !meta_dir.exists() && legacy_meta.join("manifest.json").exists() {
+        std::fs::rename(&legacy_meta, &meta_dir)
+            .context("Failed to migrate the pre-rename .clings directory")?;
+        term::print_info("Migrated workspace metadata from .clings/ to .cmetal/.");
+    }
     if !meta_dir.join("manifest.json").exists() {
         anyhow::bail!(
-            "No .clings/manifest.json here — this looks like a git checkout.\n\
-             Update a checkout with `git pull`; `clings update` is for \
-             workspaces created by `clings init`."
+            "No .cmetal/manifest.json here — this looks like a git checkout.\n\
+             Update a checkout with `git pull`; `cmetal update` is for \
+             workspaces created by `cmetal init`."
         );
     }
 
@@ -304,8 +312,8 @@ fn cmd_update(base_dir: &Path) -> Result<()> {
     let format = manifest_field(&manifest, "format_version").and_then(|v| v.parse::<u32>().ok());
     if format != Some(1) {
         anyhow::bail!(
-            "This workspace uses manifest format {} — this clings only \
-             understands format 1. Upgrade clings and retry.",
+            "This workspace uses manifest format {} — this cmetal only \
+             understands format 1. Upgrade cmetal and retry.",
             format.map_or_else(|| "?".to_string(), |f| f.to_string())
         );
     }
@@ -314,7 +322,7 @@ fn cmd_update(base_dir: &Path) -> Result<()> {
     match (semver_triple(ws_version), semver_triple(bin_version)) {
         (Some(ws), Some(bin)) if ws > bin => anyhow::bail!(
             "Workspace curriculum {ws_version} is NEWER than this binary's \
-             ({bin_version}) — updating would downgrade it. Upgrade clings instead."
+             ({bin_version}) — updating would downgrade it. Upgrade cmetal instead."
         ),
         (Some(ws), Some(bin)) if ws == bin => {
             println!();
@@ -376,7 +384,7 @@ fn cmd_update(base_dir: &Path) -> Result<()> {
     //    learner could lose, so shrink the window before any cleanup.
     //    (If interrupted exactly here, the copies stay on the old text
     //    and the next update reports them as edited — degraded but
-    //    honest, and `clings reset <name>` recovers.)
+    //    honest, and `cmetal reset <name>` recovers.)
     let mut refreshed = Vec::new();
     for (my_copy, new_bytes, display_name) in pending_refresh {
         std::fs::write(&my_copy, &new_bytes)?;
@@ -409,8 +417,8 @@ fn cmd_update(base_dir: &Path) -> Result<()> {
     for name in &kept {
         term::print_warning(&format!(
             "{name} changed upstream but you have edits — your copy is kept. \
-             Compare with `clings diff {name}`, or take the new version with \
-             `clings reset {name}`."
+             Compare with `cmetal diff {name}`, or take the new version with \
+             `cmetal reset {name}`."
         ));
     }
     if new_exercises.is_empty() && refreshed.is_empty() && kept.is_empty() {
@@ -430,25 +438,30 @@ fn resolve_base_dir() -> Result<PathBuf> {
             break;
         }
     }
-    anyhow::bail!("Could not find info.toml. Are you in a clings project directory?")
+    anyhow::bail!("Could not find info.toml. Are you in a cmetal project directory?")
 }
 
-/// Like `resolve_base_dir`, but for `clings update`: a workspace whose
+/// Like `resolve_base_dir`, but for `cmetal update`: a workspace whose
 /// previous update was interrupted mid-swap may transiently have NO
-/// info.toml (it sits in .clings/backup), so the workspace metadata
+/// info.toml (it sits in .cmetal/backup), so the workspace metadata
 /// directory is accepted as a marker too — otherwise the recovery pass
 /// could never run for exactly the crash it exists to repair.
 fn resolve_workspace_dir() -> Result<PathBuf> {
     let mut dir = std::env::current_dir()?;
     loop {
-        if dir.join("info.toml").exists() || dir.join(".clings").join("manifest.json").exists() {
+        if dir.join("info.toml").exists()
+            || dir.join(".cmetal").join("manifest.json").exists()
+            || dir.join(".clings").join("manifest.json").exists()
+        {
+            // (.clings is the pre-rename metadata directory; update
+            // migrates it.)
             return Ok(dir);
         }
         if !dir.pop() {
             break;
         }
     }
-    anyhow::bail!("Could not find a clings workspace here (no info.toml or .clings/manifest.json).")
+    anyhow::bail!("Could not find a cmetal workspace here (no info.toml or .cmetal/manifest.json).")
 }
 
 fn load_exercises(
@@ -521,7 +534,7 @@ fn find_exercise_info<'a>(info: &'a InfoFile, name: &str) -> Result<&'a info_fil
         .with_context(|| format!("Exercise '{name}' not found"))
 }
 
-/// Writes to stdout, tolerating ONLY a closed pipe (`clings diff x |
+/// Writes to stdout, tolerating ONLY a closed pipe (`cmetal diff x |
 /// head`); any other write failure is a real error and propagates.
 fn write_stdout(text: &str) -> Result<()> {
     use std::io::Write;
@@ -532,7 +545,7 @@ fn write_stdout(text: &str) -> Result<()> {
     }
 }
 
-/// `clings diff <name>`: pristine exercise vs the learner's working
+/// `cmetal diff <name>`: pristine exercise vs the learner's working
 /// copy. Pure file operation — needs no compiler, no state.
 fn cmd_diff(base_dir: &Path, name: &str) -> Result<()> {
     let info = InfoFile::parse(&base_dir.join("info.toml"))?;
@@ -543,7 +556,7 @@ fn cmd_diff(base_dir: &Path, name: &str) -> Result<()> {
     let my_path = base_dir.join("my_exercises").join(&rel);
     if !my_path.exists() {
         write_stdout(&format!(
-            "\n{name}: no working copy yet — it is created on the next `clings` run.\n\n"
+            "\n{name}: no working copy yet — it is created on the next `cmetal` run.\n\n"
         ))?;
         return Ok(());
     }
@@ -567,7 +580,7 @@ fn cmd_diff(base_dir: &Path, name: &str) -> Result<()> {
     Ok(())
 }
 
-/// `clings reset <name>`: restore one exercise's working copy to the
+/// `cmetal reset <name>`: restore one exercise's working copy to the
 /// pristine version and mark it pending again, leaving every other
 /// exercise's progress untouched. Needs no compiler.
 fn cmd_reset_one(base_dir: &Path, name: &str, compiler_kind: CompilerKind) -> Result<()> {
@@ -609,7 +622,7 @@ fn main() -> Result<()> {
         // Creates a workspace: works OUTSIDE any existing project.
         Some(Commands::Init { dir }) => return cmd_init(dir.clone()),
         // Reconciles files; must run even in a workspace whose
-        // info.toml sits in .clings/backup after an interrupted update,
+        // info.toml sits in .cmetal/backup after an interrupted update,
         // which is why it resolves the workspace by its own marker.
         Some(Commands::Update) => {
             let base_dir = resolve_workspace_dir()?;
@@ -627,14 +640,14 @@ fn main() -> Result<()> {
     }
 
     let base_dir = resolve_base_dir()
-        .context("Could not find clings project. Make sure you're inside the clings directory.")?;
+        .context("Could not find cmetal project. Make sure you're inside the cmetal directory.")?;
 
     let info = InfoFile::parse(&base_dir.join("info.toml"))?;
 
     let compiler = Compiler::new(compiler_kind, &base_dir)?;
     let work_dir = prepare_workspace(&info, &base_dir)?;
     let exercises = load_exercises(&info, &base_dir, &work_dir, compiler_kind);
-    let build_dir = base_dir.join("target").join("clings");
+    let build_dir = base_dir.join("target").join("cmetal");
     let mut state = AppState::new(exercises, &base_dir)?;
 
     match cli.command {
@@ -775,7 +788,7 @@ fn main() -> Result<()> {
             println!();
 
             // The verify pass that just unlocked the solution is a completion
-            // like any other: persist it, or `clings list` keeps showing the
+            // like any other: persist it, or `cmetal list` keeps showing the
             // exercise as pending.
             if verified_now {
                 state.complete(&name)?;

@@ -78,7 +78,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_count_char_basic) {
     ASSERT_EQ(count_char("hello", 'l'), 2);

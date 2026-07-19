@@ -123,7 +123,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_valid_pair) {
     int a = 0, b = 0;

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Drive the clings watch-mode TUI like a real user, solving every exercise.
+"""Drive the cmetal watch-mode TUI like a real user, solving every exercise.
 
 For each exercise the bot:
-  1. waits for clings to report the failure,
+  1. waits for cmetal to report the failure,
   2. presses 'h' to read the first hint (just like a stuck human would),
   3. "edits" the exercise by copying the reference solution over the
-     working copy in my_exercises/ (created by clings on startup),
+     working copy in my_exercises/ (created by cmetal on startup),
   4. waits for the file watcher to recompile and report success,
   5. presses 'n' to advance.
 
@@ -43,8 +43,8 @@ from solutions_codec import decode_bytes  # noqa: E402
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WORKSPACE = os.path.join(REPO, "my_exercises")
 SOLUTIONS = os.path.join(REPO, "solutions")
-STATE_FILE = os.path.join(REPO, ".clings-state.txt")
-BINARY = os.path.join(REPO, "target", "debug", "clings")
+STATE_FILE = os.path.join(REPO, ".cmetal-state.txt")
+BINARY = os.path.join(REPO, "target", "debug", "cmetal")
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][AB0]|[\r\x07]")
 
@@ -76,7 +76,7 @@ def load_exercise_paths():
     }
 
 
-class ClingsBot:
+class CmetalBot:
     def __init__(self, timeout):
         self.timeout = timeout
         self.buf = ""
@@ -154,7 +154,7 @@ def main():
     subprocess.run(["cargo", "build", "--quiet"], cwd=REPO, check=True)
     paths = load_exercise_paths()
 
-    # Move any in-progress workspace aside; clings recreates a fresh one
+    # Move any in-progress workspace aside; cmetal recreates a fresh one
     # on startup from the pristine exercises.
     backup = None
     if not args.keep and os.path.isdir(WORKSPACE):
@@ -164,7 +164,7 @@ def main():
     if os.path.exists(STATE_FILE):
         os.unlink(STATE_FILE)
 
-    bot = ClingsBot(args.timeout)
+    bot = CmetalBot(args.timeout)
     solved, attempts = [], {}
     try:
         bot.wait_for(WELCOME)

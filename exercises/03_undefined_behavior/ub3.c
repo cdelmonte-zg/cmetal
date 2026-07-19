@@ -1,7 +1,7 @@
 // ub3.c - Integer promotion: the hidden signed int
 //
 // Arithmetic in C never happens on types narrower than int. On the
-// desktop targets clings supports, int is 32 bits, so operands of type
+// desktop targets cmetal supports, int is 32 bits, so operands of type
 // uint8_t or uint16_t are promoted to SIGNED int -- int can represent
 // every one of their values (C11 6.3.1.1). (On a platform with 16-bit
 // int, uint16_t would be promoted to unsigned int instead, and this
@@ -57,7 +57,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_square_small) {
     ASSERT_EQ(square_u16(0), 0u);

@@ -58,7 +58,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_map_square) {
     int a[] = {1, 2, 3, 4, 5};

@@ -1,5 +1,5 @@
 [book]
-title = "clings"
+title = "cmetal"
 description = "Small exercises to learn advanced C concepts, inspired by rustlings."
 authors = ["Christian Del Monte"]
 language = "en"
@@ -7,8 +7,8 @@ language = "en"
 [output.html]
 default-theme = "rust"
 preferred-dark-theme = "ayu"
-git-repository-url = "https://github.com/cdelmonte-zg/clings"
-edit-url-template = "https://github.com/cdelmonte-zg/clings/edit/main/book/{path}"
+git-repository-url = "https://github.com/cdelmonte-zg/cmetal"
+edit-url-template = "https://github.com/cdelmonte-zg/cmetal/edit/main/book/{path}"
 no-section-label = true
 
 [output.html.fold]

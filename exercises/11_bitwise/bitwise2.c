@@ -46,7 +46,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_pack_rgb) {
     ASSERT_EQ(pack_rgb(0xFF, 0x00, 0x80), (uint32_t)0x00FF0080);

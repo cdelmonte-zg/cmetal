@@ -10,7 +10,7 @@
 #include <limits.h>
 
 // NOTE: this file's tests assume unsigned int is 32 bits — true on
-// every platform clings targets, but an ABI fact, not a C guarantee
+// every platform cmetal targets, but an ABI fact, not a C guarantee
 // (C11 only requires at least 16 value bits). The assert makes the
 // assumption explicit; a good count_set_bits fix works for ANY width.
 _Static_assert(UINT_MAX == 0xFFFFFFFFu,
@@ -45,7 +45,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_count_zero) {
     ASSERT_EQ(count_set_bits(0), 0);

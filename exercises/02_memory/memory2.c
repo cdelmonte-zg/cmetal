@@ -11,7 +11,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "clings_alloc.h"
+#include "cmetal_alloc.h"
 
 typedef struct {
     int *items;
@@ -48,7 +48,7 @@ void dynarray_push(DynArray *da, int value) {
         // we then write through the NULL pointer anyway.
         // Use a temporary pointer, and return -1 without touching the
         // array if the allocation failed.
-        da->items = CLINGS_REALLOC(da->items, sizeof(int) * (size_t)new_cap);
+        da->items = CMETAL_REALLOC(da->items, sizeof(int) * (size_t)new_cap);
         da->capacity = new_cap;
     }
     da->items[da->count] = value;
@@ -94,7 +94,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_create) {
     DynArray *da = dynarray_create(4);
@@ -146,7 +146,7 @@ TEST(test_push_failure_leaves_array_untouched) {
     ASSERT_EQ(dynarray_push(da, 1), 0);
     ASSERT_EQ(dynarray_push(da, 2), 0);
     int *items_before = da->items;
-    clings_fail_next_alloc();          /* the growth realloc will fail */
+    cmetal_fail_next_alloc();          /* the growth realloc will fail */
     ASSERT_EQ(dynarray_push(da, 3), -1);
     ASSERT_EQ(da->count, 2);
     ASSERT_EQ(da->capacity, 2);

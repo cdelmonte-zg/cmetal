@@ -13,35 +13,35 @@ fn has_gcc() -> bool {
         .unwrap_or(false)
 }
 
-/// Build the clings binary path (debug target).
-fn clings_bin() -> std::path::PathBuf {
+/// Build the cmetal binary path (debug target).
+fn cmetal_bin() -> std::path::PathBuf {
     let mut path = std::env::current_exe().unwrap();
-    // test binary is in target/debug/deps/, clings binary is in target/debug/
+    // test binary is in target/debug/deps/, cmetal binary is in target/debug/
     path.pop(); // remove test binary name
     if path.ends_with("deps") {
         path.pop();
     }
-    path.push("clings");
+    path.push("cmetal");
     path
 }
 
 /// Overwrite a workspace manifest with a given curriculum version.
 fn stamp_manifest(ws: &Path, version: &str) {
     std::fs::write(
-        ws.join(".clings/manifest.json"),
+        ws.join(".cmetal/manifest.json"),
         format!("{{\n  \"curriculum_version\": \"{version}\",\n  \"format_version\": 1\n}}\n"),
     )
     .unwrap();
 }
 
-/// Create a minimal clings project in a temp directory.
+/// Create a minimal cmetal project in a temp directory.
 fn setup_project(tmp: &Path, exercises: &[(&str, &str, &str)]) {
     // exercises: [(name, dir, c_code)]
     let include_dir = tmp.join("include");
     std::fs::create_dir_all(&include_dir).unwrap();
     std::fs::copy(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/include/clings_test.h"),
-        include_dir.join("clings_test.h"),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/include/cmetal_test.h"),
+        include_dir.join("cmetal_test.h"),
     )
     .unwrap();
 
@@ -135,7 +135,7 @@ fn cli_list_shows_exercises() {
         )],
     );
 
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("list")
         .current_dir(tmp.path())
         .output()
@@ -165,7 +165,7 @@ fn cli_verify_valid_exercises() {
         )],
     );
 
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("verify")
         .current_dir(tmp.path())
         .output()
@@ -188,7 +188,7 @@ fn cli_verify_fails_on_broken_exercise() {
     let tmp = TempDir::new().unwrap();
     setup_project(tmp.path(), &[("broken", "00_intro", "not valid C;\n")]);
 
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("verify")
         .current_dir(tmp.path())
         .output()
@@ -219,12 +219,12 @@ fn cli_reset_clears_state() {
 
     // Create a fake state file
     std::fs::write(
-        tmp.path().join(".clings-state.txt"),
+        tmp.path().join(".cmetal-state.txt"),
         "DON'T EDIT THIS FILE!\n\nex1\n\nex1\n",
     )
     .unwrap();
 
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("reset")
         .current_dir(tmp.path())
         .output()
@@ -232,7 +232,7 @@ fn cli_reset_clears_state() {
 
     assert!(output.status.success(), "reset should succeed");
     assert!(
-        !tmp.path().join(".clings-state.txt").exists(),
+        !tmp.path().join(".cmetal-state.txt").exists(),
         "state file should be removed after reset"
     );
 }
@@ -254,7 +254,7 @@ fn cli_solution_gated_until_solved() {
     std::fs::write(tmp.path().join("solutions/00_intro/ex1.c"), solution).unwrap();
 
     // Exercise still broken: solution must stay locked
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .args(["solution", "ex1"])
         .current_dir(tmp.path())
         .output()
@@ -270,7 +270,7 @@ fn cli_solution_gated_until_solved() {
 
     // "Solve" the exercise in the workspace, then ask again
     std::fs::write(tmp.path().join("my_exercises/00_intro/ex1.c"), solution).unwrap();
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .args(["solution", "ex1"])
         .current_dir(tmp.path())
         .output()
@@ -295,7 +295,7 @@ fn cli_creates_workspace_copies() {
     let code = "#include <stdio.h>\nint main(void) { return 0; }\n";
     setup_project(tmp.path(), &[("hello", "00_intro", code)]);
 
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("list")
         .current_dir(tmp.path())
         .output()
@@ -308,7 +308,7 @@ fn cli_creates_workspace_copies() {
 
     // A second run must not overwrite the learner's edits
     std::fs::write(&work_file, "// my work\n").unwrap();
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("list")
         .current_dir(tmp.path())
         .output()
@@ -336,7 +336,7 @@ fn cli_reset_restores_workspace() {
     std::fs::create_dir_all(work_file.parent().unwrap()).unwrap();
     std::fs::write(&work_file, "// solved\n").unwrap();
 
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("reset")
         .current_dir(tmp.path())
         .output()
@@ -366,7 +366,7 @@ fn cli_run_specific_exercise() {
         )],
     );
 
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .args(["run", "hello"])
         .current_dir(tmp.path())
         .output()
@@ -396,27 +396,27 @@ fn cli_run_and_verify_persist_state() {
         ],
     );
 
-    // A passing `clings run` must mark the exercise done...
-    let output = Command::new(clings_bin())
+    // A passing `cmetal run` must mark the exercise done...
+    let output = Command::new(cmetal_bin())
         .args(["run", "ok1"])
         .current_dir(tmp.path())
         .output()
         .unwrap();
     assert!(output.status.success());
-    let state = std::fs::read_to_string(tmp.path().join(".clings-state.txt"))
+    let state = std::fs::read_to_string(tmp.path().join(".cmetal-state.txt"))
         .expect("run must write the state file");
     assert!(state.contains("ok1"), "run must mark the exercise done");
 
-    // ...a `clings solution` unlocked by an on-the-spot verify pass must
+    // ...a `cmetal solution` unlocked by an on-the-spot verify pass must
     // persist that completion too (before `verify` runs, so the unlock
     // really goes through the verified-now path)...
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .args(["solution", "ok3"])
         .current_dir(tmp.path())
         .output()
         .unwrap();
     assert!(output.status.success());
-    let state = std::fs::read_to_string(tmp.path().join(".clings-state.txt")).unwrap();
+    let state = std::fs::read_to_string(tmp.path().join(".cmetal-state.txt")).unwrap();
     assert!(
         state.contains("ok3"),
         "solution must mark a verified-now exercise done, state:\n{state}"
@@ -426,14 +426,14 @@ fn cli_run_and_verify_persist_state() {
         "ok2 has not been verified yet, state:\n{state}"
     );
 
-    // ...and `clings verify` must persist every exercise that passed.
-    let output = Command::new(clings_bin())
+    // ...and `cmetal verify` must persist every exercise that passed.
+    let output = Command::new(cmetal_bin())
         .arg("verify")
         .current_dir(tmp.path())
         .output()
         .unwrap();
     assert!(output.status.success());
-    let state = std::fs::read_to_string(tmp.path().join(".clings-state.txt")).unwrap();
+    let state = std::fs::read_to_string(tmp.path().join(".cmetal-state.txt")).unwrap();
     assert!(
         state.contains("ok1") && state.contains("ok2") && state.contains("ok3"),
         "verify must mark passing exercises done, state:\n{state}"
@@ -445,7 +445,7 @@ fn cli_init_creates_selfcontained_workspace() {
     let tmp = TempDir::new().unwrap();
     let ws = tmp.path().join("course");
 
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("init")
         .arg(&ws)
         .current_dir(tmp.path())
@@ -458,15 +458,15 @@ fn cli_init_creates_selfcontained_workspace() {
     );
     assert!(ws.join("info.toml").exists());
     assert!(ws.join("exercises/00_intro/intro1.c").exists());
-    assert!(ws.join("include/clings_test.h").exists());
-    assert!(ws.join("include/clings_alloc.h").exists());
+    assert!(ws.join("include/cmetal_test.h").exists());
+    assert!(ws.join("include/cmetal_alloc.h").exists());
     assert!(ws.join("solutions/00_intro/intro1.c.enc").exists());
-    assert!(ws.join(".clings/manifest.json").exists());
+    assert!(ws.join(".cmetal/manifest.json").exists());
     // The archive must never ship plaintext solutions
     assert!(!ws.join("solutions/00_intro/intro1.c").exists());
 
     // init must refuse to clobber an existing workspace
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("init")
         .arg(&ws)
         .current_dir(tmp.path())
@@ -481,7 +481,7 @@ fn cli_init_creates_selfcontained_workspace() {
     let occupied = tmp.path().join("occupied");
     std::fs::create_dir(&occupied).unwrap();
     std::fs::write(occupied.join("keep.txt"), "do not overwrite").unwrap();
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("init")
         .arg(&occupied)
         .current_dir(tmp.path())
@@ -500,7 +500,7 @@ fn cli_init_creates_selfcontained_workspace() {
     // An existing but EMPTY directory is fine
     let empty = tmp.path().join("empty");
     std::fs::create_dir(&empty).unwrap();
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("init")
         .arg(&empty)
         .current_dir(tmp.path())
@@ -515,7 +515,7 @@ fn cli_init_creates_selfcontained_workspace() {
 
     // The engine treats the workspace exactly like a repo checkout
     if has_gcc() {
-        let output = Command::new(clings_bin())
+        let output = Command::new(cmetal_bin())
             .arg("list")
             .current_dir(&ws)
             .output()
@@ -534,7 +534,7 @@ fn cli_init_creates_selfcontained_workspace() {
 fn cli_update_reconciles_workspace() {
     let tmp = TempDir::new().unwrap();
     let ws = tmp.path().join("course");
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("init")
         .arg(&ws)
         .current_dir(tmp.path())
@@ -568,7 +568,7 @@ fn cli_update_reconciles_workspace() {
     // - bitwise3 did not exist in the old curriculum
     std::fs::remove_file(ws.join("exercises/11_bitwise/bitwise3.c")).unwrap();
 
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("update")
         .current_dir(&ws)
         .output()
@@ -603,12 +603,12 @@ fn cli_update_reconciles_workspace() {
         "new exercises must be reported"
     );
     // No staging/backup leftovers
-    assert!(!ws.join(".clings/staging").exists());
-    assert!(!ws.join(".clings/backup").exists());
+    assert!(!ws.join(".cmetal/staging").exists());
+    assert!(!ws.join(".cmetal/backup").exists());
 
     // In a git-checkout-like directory (no manifest) update must refuse
-    std::fs::remove_file(ws.join(".clings/manifest.json")).unwrap();
-    let output = Command::new(clings_bin())
+    std::fs::remove_file(ws.join(".cmetal/manifest.json")).unwrap();
+    let output = Command::new(cmetal_bin())
         .arg("update")
         .current_dir(&ws)
         .output()
@@ -620,7 +620,7 @@ fn cli_update_reconciles_workspace() {
 fn cli_update_interrupted_swap_rolls_back() {
     let tmp = TempDir::new().unwrap();
     let ws = tmp.path().join("course");
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("init")
         .arg(&ws)
         .current_dir(tmp.path())
@@ -643,9 +643,9 @@ fn cli_update_interrupted_swap_rolls_back() {
     .unwrap();
 
     // Inject a failure halfway through phase B of the swap.
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("update")
-        .env("CLINGS_TEST_FAIL_INSTALL", "include")
+        .env("CMETAL_TEST_FAIL_INSTALL", "include")
         .current_dir(&ws)
         .output()
         .unwrap();
@@ -670,14 +670,14 @@ fn cli_update_interrupted_swap_rolls_back() {
         "// my work\n"
     );
     assert!(ws.join("info.toml").exists());
-    assert!(ws.join("include/clings_test.h").exists());
+    assert!(ws.join("include/cmetal_test.h").exists());
     assert!(
-        !ws.join(".clings/backup").exists(),
+        !ws.join(".cmetal/backup").exists(),
         "a fully rolled-back update must not leave a backup behind"
     );
 
     // A second update (no injection) must succeed and lose nothing.
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("update")
         .current_dir(&ws)
         .output()
@@ -706,7 +706,7 @@ fn cli_update_interrupted_swap_rolls_back() {
 fn cli_update_recovers_interrupted_backup() {
     let tmp = TempDir::new().unwrap();
     let ws = tmp.path().join("course");
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("init")
         .arg(&ws)
         .current_dir(tmp.path())
@@ -717,11 +717,11 @@ fn cli_update_recovers_interrupted_backup() {
 
     // Simulate a crash mid-swap: info.toml moved to backup, never
     // replaced. resolve_base_dir would fail here — update must still
-    // find the workspace via .clings/manifest.json and recover.
-    std::fs::create_dir_all(ws.join(".clings/backup")).unwrap();
-    std::fs::rename(ws.join("info.toml"), ws.join(".clings/backup/info.toml")).unwrap();
+    // find the workspace via .cmetal/manifest.json and recover.
+    std::fs::create_dir_all(ws.join(".cmetal/backup")).unwrap();
+    std::fs::rename(ws.join("info.toml"), ws.join(".cmetal/backup/info.toml")).unwrap();
 
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("update")
         .current_dir(&ws)
         .output()
@@ -733,7 +733,7 @@ fn cli_update_recovers_interrupted_backup() {
     );
     assert!(ws.join("info.toml").exists(), "info.toml must be restored");
     assert!(
-        !ws.join(".clings/backup").exists(),
+        !ws.join(".cmetal/backup").exists(),
         "backup must be consumed"
     );
 }
@@ -742,7 +742,7 @@ fn cli_update_recovers_interrupted_backup() {
 fn cli_update_version_guard() {
     let tmp = TempDir::new().unwrap();
     let ws = tmp.path().join("course");
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("init")
         .arg(&ws)
         .current_dir(tmp.path())
@@ -751,7 +751,7 @@ fn cli_update_version_guard() {
     assert!(output.status.success());
 
     // Same version: a no-op that says so, without churning the tree.
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("update")
         .current_dir(&ws)
         .output()
@@ -764,7 +764,7 @@ fn cli_update_version_guard() {
 
     // Newer workspace than binary: refuse the downgrade.
     stamp_manifest(&ws, "99.0.0");
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("update")
         .current_dir(&ws)
         .output()
@@ -780,6 +780,71 @@ fn cli_update_version_guard() {
 }
 
 #[test]
+fn cli_migrates_prerename_clings_workspace() {
+    let tmp = TempDir::new().unwrap();
+    let ws = tmp.path().join("course");
+    let output = Command::new(cmetal_bin())
+        .arg("init")
+        .arg(&ws)
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    // Turn it into a pre-rename workspace: .clings metadata (with an
+    // older curriculum version) and a .clings-state.txt with progress.
+    std::fs::rename(ws.join(".cmetal"), ws.join(".clings")).unwrap();
+    std::fs::write(
+        ws.join(".clings/manifest.json"),
+        "{\n  \"curriculum_version\": \"0.0.1\",\n  \"format_version\": 1\n}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        ws.join(".clings-state.txt"),
+        "DON'T EDIT THIS FILE!\n\nintro1\n\nintro1\n",
+    )
+    .unwrap();
+
+    // update must find the workspace via the legacy marker, migrate the
+    // metadata directory, and complete normally.
+    let output = Command::new(cmetal_bin())
+        .arg("update")
+        .current_dir(&ws)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "update on a pre-rename workspace failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(ws.join(".cmetal/manifest.json").exists());
+    assert!(
+        !ws.join(".clings").exists(),
+        "legacy metadata dir must be adopted"
+    );
+
+    // The legacy state file is adopted on the first state load.
+    if has_gcc() {
+        let output = Command::new(cmetal_bin())
+            .arg("list")
+            .current_dir(&ws)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        assert!(
+            ws.join(".cmetal-state.txt").exists(),
+            "state must be migrated to the new name"
+        );
+        assert!(!ws.join(".clings-state.txt").exists());
+        let state = std::fs::read_to_string(ws.join(".cmetal-state.txt")).unwrap();
+        assert!(
+            state.contains("intro1"),
+            "progress must survive the migration"
+        );
+    }
+}
+
+#[test]
 fn cli_diff_and_reset_single_exercise() {
     if !has_gcc() {
         eprintln!("skipping: gcc not available");
@@ -788,7 +853,7 @@ fn cli_diff_and_reset_single_exercise() {
 
     let tmp = TempDir::new().unwrap();
     let ws = tmp.path().join("course");
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .arg("init")
         .arg(&ws)
         .current_dir(tmp.path())
@@ -804,7 +869,7 @@ fn cli_diff_and_reset_single_exercise() {
     )
     .unwrap();
 
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .args(["diff", "intro1"])
         .current_dir(&ws)
         .output()
@@ -819,12 +884,12 @@ fn cli_diff_and_reset_single_exercise() {
     // Mark intro1 done first: reset <name> must un-done it, or watch
     // mode would never offer the restored exercise again.
     std::fs::write(
-        ws.join(".clings-state.txt"),
+        ws.join(".cmetal-state.txt"),
         "DON'T EDIT THIS FILE!\n\nintro1\n\nintro1\n",
     )
     .unwrap();
 
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .args(["reset", "intro1"])
         .current_dir(&ws)
         .output()
@@ -834,7 +899,7 @@ fn cli_diff_and_reset_single_exercise() {
         "reset <name> failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let state = std::fs::read_to_string(ws.join(".clings-state.txt")).unwrap();
+    let state = std::fs::read_to_string(ws.join(".cmetal-state.txt")).unwrap();
     let done_entries: Vec<&str> = state
         .lines()
         .skip(3) // header, blank, current name
@@ -849,7 +914,7 @@ fn cli_diff_and_reset_single_exercise() {
         std::fs::read_to_string(ws.join("exercises/00_intro/intro1.c")).unwrap()
     );
 
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .args(["diff", "intro1"])
         .current_dir(&ws)
         .output()
@@ -873,8 +938,8 @@ fn cli_hint_shows_hint_text() {
     let include_dir = tmp.path().join("include");
     std::fs::create_dir_all(&include_dir).unwrap();
     std::fs::copy(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/include/clings_test.h"),
-        include_dir.join("clings_test.h"),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/include/cmetal_test.h"),
+        include_dir.join("cmetal_test.h"),
     )
     .unwrap();
 
@@ -905,7 +970,7 @@ hints = ["Try using printf", "Check the return value"]
 "#;
     std::fs::write(tmp.path().join("info.toml"), toml).unwrap();
 
-    let output = Command::new(clings_bin())
+    let output = Command::new(cmetal_bin())
         .args(["hint", "ex1"])
         .current_dir(tmp.path())
         .output()
