@@ -1,6 +1,6 @@
 # The curriculum
 
-clings ships **32 exercises across 12 topics**, ordered roughly from warm-up to
+clings ships **35 exercises across 12 topics**, ordered roughly from warm-up to
 the parts of C that bite in code review. Each is a real bug — the kind found in
 production C — never a fill-in-the-blanks template.
 
@@ -9,7 +9,7 @@ production C — never a fill-in-the-blanks template.
 | 00 | Intro                 | 1         | Getting started, basic program structure             |
 | 01 | Pointers              | 2         | Decay, arithmetic, pointer-size pitfalls             |
 | 02 | Memory                | 3         | `malloc`/`free`, `realloc`, leaks, double-free       |
-| 03 | Undefined Behavior    | 1         | Signed overflow detection                            |
+| 03 | Undefined Behavior    | 4         | Signed overflow, sequence points, integer promotion, stack lifetimes |
 | 04 | Preprocessor          | 1         | Stringify, token pasting, macro pitfalls             |
 | 05 | UB Lab                | 6         | Hands-on UB experiments with sanitizer feedback      |
 | 06 | Strings               | 3         | Safe concatenation, tokenizing, parsing              |

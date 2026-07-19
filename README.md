@@ -193,14 +193,14 @@ clings reset                 # clear progress, restore pristine exercises
 
 ---
 
-## Exercises (32 total)
+## Exercises (35 total)
 
 | Topic                 | #  | What you will learn                                 |
 |-----------------------|----|-----------------------------------------------------|
 | 00 Intro              | 1  | Getting started, basic program structure             |
 | 01 Pointers           | 2  | Decay, arithmetic, pointer-size pitfalls             |
 | 02 Memory             | 3  | `malloc`/`free`, `realloc`, leaks, double-free       |
-| 03 Undefined Behavior | 1  | Signed overflow detection                            |
+| 03 Undefined Behavior | 4  | Signed overflow, sequence points, promotions, stack lifetimes |
 | 04 Preprocessor       | 1  | Stringify, token pasting, macro pitfalls             |
 | 05 UB Lab             | 6  | Hands-on UB experiments with sanitizer feedback      |
 | 06 Strings            | 3  | Safe concatenation, tokenizing, parsing              |

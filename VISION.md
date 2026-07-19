@@ -13,7 +13,7 @@ that actually hurt.
 
 ## Where we are
 
-Today clings ships 32 exercises across 12 topics (pointers, memory, UB,
+Today clings ships 35 exercises across 12 topics (pointers, memory, UB,
 strings, structs, function pointers, const, error handling, bitwise), a
 watch-mode TUI with progressive hints, sanitizer-backed verification, a
 gitignored workspace so your progress never pollutes the repo, and
@@ -43,8 +43,8 @@ These are the non-negotiables that every future change must respect:
 ### Near term — depth of the current curriculum
 
 - Grow each topic to a proper arc (3–6 exercises from warm-up to tricky).
-- More UB Lab scenarios: use-after-free across functions, dangling stack
-  pointers, integer promotion traps, sequence-point violations.
+- More UB Lab scenarios: use-after-free across functions, double-free,
+  misaligned access, out-of-lifetime `va_list` use.
 - Explain failures, not just show them: short "what the sanitizer is
   telling you" notes attached to each exercise's hints.
 
