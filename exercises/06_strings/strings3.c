@@ -17,6 +17,13 @@
 #include <stdio.h>
 #include <limits.h>
 
+/* The overflow test STRINGS ("2147483648", ...) assume a 32-bit
+ * two's-complement int; the assertions themselves use INT_MAX/INT_MIN.
+ * C11 only guarantees int can hold ±32767, and INT_MIN == -INT_MAX - 1
+ * only holds on two's complement — the assert pins both assumptions. */
+_Static_assert(INT_MAX == 2147483647 && INT_MIN == (-2147483647 - 1),
+               "strings3 requires a 32-bit two's-complement int");
+
 int my_strtoi(const char *s, int *result) {
     if (s == NULL) {
         return -1;
@@ -123,13 +130,13 @@ TEST(test_stops_at_non_digit) {
 TEST(test_int_max) {
     int val;
     ASSERT_EQ(my_strtoi("2147483647", &val), 0);
-    ASSERT_EQ(val, 2147483647);
+    ASSERT_EQ(val, INT_MAX);
 }
 
 TEST(test_int_min) {
     int val;
     ASSERT_EQ(my_strtoi("-2147483648", &val), 0);
-    ASSERT_EQ(val, -2147483648);
+    ASSERT_EQ(val, INT_MIN);
 }
 
 TEST(test_overflow_positive) {

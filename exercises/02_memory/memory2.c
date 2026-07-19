@@ -1,8 +1,13 @@
 // memory2.c - Realloc patterns
 //
 // This program implements a dynamic integer array ("DynArray") that grows
-// as elements are pushed. There are bugs in how realloc is used and how
-// the struct is initialized. Fix them!
+// as elements are pushed. There are bugs in how realloc is used, in how
+// the struct is initialized — and in the contract itself: a void push
+// has no way to tell the caller its value was silently dropped.
+//
+// The target contract of dynarray_push: return 0 on success and -1 if
+// growing the array fails — and on failure the array is left EXACTLY
+// as it was (same items, same count, same capacity).
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,12 +31,22 @@ DynArray *dynarray_create(int initial_cap) {
     return da;
 }
 
+// TODO: growth can fail, so push must be able to say so. Change the
+// contract to:
+//     int dynarray_push(DynArray *da, int value);
+// returning 0 on success and -1 when growing fails, leaving the array
+// untouched. Note: a changed signature ripples to every call site —
+// the demo and the tests below are already written against the new
+// contract, so this file won't even compile until the function
+// catches up with its callers.
 void dynarray_push(DynArray *da, int value) {
     if (da->count >= da->capacity) {
         int new_cap = da->capacity * 2;
         // BUG: If realloc fails, it returns NULL but the original pointer
-        // is overwritten — we lose our data and leak the old block!
-        // Use a temporary pointer to hold the realloc result.
+        // is overwritten — we lose our data and leak the old block. Worse:
+        // we then write through the NULL pointer anyway.
+        // Use a temporary pointer, and return -1 without touching the
+        // array if the allocation failed.
         da->items = realloc(da->items, sizeof(int) * (size_t)new_cap);
         da->capacity = new_cap;
     }
@@ -60,11 +75,14 @@ int main(void) {
         return 1;
     }
 
-    dynarray_push(arr, 10);
-    dynarray_push(arr, 20);
-    dynarray_push(arr, 30);
-    dynarray_push(arr, 40);
-    dynarray_push(arr, 50);
+    int values[] = {10, 20, 30, 40, 50};
+    for (int i = 0; i < 5; i++) {
+        if (dynarray_push(arr, values[i]) != 0) {
+            printf("Push failed!\n");
+            dynarray_destroy(arr);
+            return 1;
+        }
+    }
 
     printf("DynArray contents:\n");
     for (int i = 0; i < arr->count; i++) {
@@ -88,9 +106,9 @@ TEST(test_create) {
 
 TEST(test_push_and_get) {
     DynArray *da = dynarray_create(4);
-    dynarray_push(da, 10);
-    dynarray_push(da, 20);
-    dynarray_push(da, 30);
+    ASSERT_EQ(dynarray_push(da, 10), 0);
+    ASSERT_EQ(dynarray_push(da, 20), 0);
+    ASSERT_EQ(dynarray_push(da, 30), 0);
     ASSERT_EQ(da->count, 3);
     ASSERT_EQ(dynarray_get(da, 0), 10);
     ASSERT_EQ(dynarray_get(da, 1), 20);
@@ -101,10 +119,10 @@ TEST(test_push_and_get) {
 TEST(test_grow_beyond_capacity) {
     DynArray *da = dynarray_create(2);
     ASSERT_EQ(da->capacity, 2);
-    dynarray_push(da, 100);
-    dynarray_push(da, 200);
-    // This push triggers a realloc
-    dynarray_push(da, 300);
+    ASSERT_EQ(dynarray_push(da, 100), 0);
+    ASSERT_EQ(dynarray_push(da, 200), 0);
+    // This push triggers a realloc; success must be reported here too.
+    ASSERT_EQ(dynarray_push(da, 300), 0);
     ASSERT_EQ(da->count, 3);
     ASSERT(da->capacity >= 3);
     ASSERT_EQ(dynarray_get(da, 0), 100);
@@ -115,12 +133,17 @@ TEST(test_grow_beyond_capacity) {
 
 TEST(test_get_out_of_bounds) {
     DynArray *da = dynarray_create(2);
-    dynarray_push(da, 42);
+    ASSERT_EQ(dynarray_push(da, 42), 0);
     ASSERT_EQ(dynarray_get(da, 0), 42);
     ASSERT_EQ(dynarray_get(da, 1), -1);
     ASSERT_EQ(dynarray_get(da, -1), -1);
     dynarray_destroy(da);
 }
+
+/* Note: the failure branch of the contract (realloc returning NULL,
+ * push returning -1 with the array untouched) is NOT exercised by
+ * these tests — forcing an allocation failure deterministically would
+ * need an injectable allocator. The contract still requires it. */
 
 int main(void) {
     RUN_TEST(test_create);

@@ -9,14 +9,24 @@
 //   find_first()  — searches a const array for a target value, returns pointer
 //   array_fill()  — fills every element of an array with a given value
 //
-// BUG 1: find_first takes `int *arr` and returns `int *`. Since the test
-//         passes a `const int[]` array, it won't compile. Fix the parameter
-//         to `const int *arr` and the return type to `const int *`.
+// BUG 1: find_first only reads the array, but takes `int *arr` and
+//         returns `int *`. The tests pass a `const int[]`: with -Werror
+//         this doesn't even compile until parameter and return type
+//         become `const int *`. This IS part of the function's
+//         contract — callers holding const data rely on it. (Changing
+//         a signature ripples to every call site; here the tests are
+//         already written against the const-correct one.)
 //
-// BUG 2: array_fill modifies the pointer `arr` by incrementing it in the loop.
-//         After the loop, it writes a sentinel that goes past the buffer.
-//         Fix: declare arr as `int *const arr` and use index-based access.
-//         The const on the pointer would have caught this bug at compile time.
+// BUG 2: array_fill walks the array by incrementing `arr` and, after
+//         the loop, writes a sentinel through it — one element past the
+//         end of the buffer. Fix the out-of-bounds write (the sanitizer
+//         run catches it in the demo below).
+//         Declaring the parameter `int *const arr` and indexing instead
+//         of incrementing makes the compiler reject any future arr++ —
+//         good self-defense. But know its limits: a top-level const on
+//         a parameter is NOT part of the function's type (C11 6.7.6.3),
+//         so no caller and no test can require it. It protects the
+//         implementation; it doesn't change the contract.
 
 #include <stdio.h>
 #include <stddef.h>
@@ -32,17 +42,15 @@ int *find_first(int *arr, int len, int target) {
     return NULL;
 }
 
-// BUG: Modifying `arr` directly and then writing past the end.
-// Fix by using `int *const arr` with index-based access.
-// The compiler would catch the arr++ if arr were declared const.
+// BUG: The stray sentinel write below goes past the end of the buffer.
+// Remove it, and switch to `int *const arr` with index-based access so
+// the compiler itself forbids moving the pointer from now on.
 void array_fill(int *arr, int len, int value) {
     for (int i = 0; i < len; i++) {
         *arr = value;
         arr++;
     }
     // BUG: arr now points one past the end — this writes out of bounds!
-    // If arr were `int *const`, the arr++ above wouldn't compile,
-    // forcing index-based access and avoiding this bug entirely.
     *arr = 0;
 }
 
@@ -54,8 +62,7 @@ int main(void) {
         printf("Found 30 at offset %td\n", found - data);
     }
 
-    // Using a larger buffer so the out-of-bounds write doesn't crash here
-    int buf[8] = {0};
+    int buf[4] = {0};
     array_fill(buf, 4, 7);
     for (int i = 0; i < 4; i++) {
         printf("buf[%d] = %d\n", i, buf[i]);

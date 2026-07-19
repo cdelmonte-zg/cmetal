@@ -73,6 +73,15 @@ hints = [
 - Must pass with `-fsanitize=address,undefined` when sanitizers are enabled
 - Stick to C11 standard -- no POSIX-specific features
 
+### Language vs platform
+
+Exercises may rely on mainstream ABI facts — 8-bit bytes, 32-bit `int`,
+8-byte `double` alignment — but must not present them as C guarantees.
+When an exercise depends on such an assumption, make it explicit in the
+code with a `_Static_assert` (see `ub3`, `structs1`, `bitwise1`,
+`strings3`) and phrase comments so that what the C standard guarantees
+and what the target ABI provides stay distinguishable.
+
 ### The exercise invariant
 
 Every exercise must **fail** verification as shipped, and every solution
