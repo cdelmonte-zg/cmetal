@@ -104,11 +104,12 @@ telling you" notes attached to each exercise's hints.
 
 - **C23 track** as compiler support matures (`nullptr`, `constexpr`,
   checked arithmetic).
-- **Packaged distribution** so `cmetal` is one install command away —
-  Homebrew and the self-contained binary exist. crates.io needs the
-  name question settled first: the `cmetal` crate name is taken, and
-  several projects in this niche share the name — a rename is under
-  consideration as part of the repositioning.
+- **Packaged distribution** ✓ — `cmetal` is one install command away
+  on every supported route: Homebrew, prebuilt tarballs, and crates.io
+  (`cargo install cmetal`), all published from a single version tag.
+  The name is settled: the rename from clings resolved the old
+  collision, and the `cmetal` crate name is registered to this
+  project.
 - **Community exercise pipeline:** contributing a new exercise should be
   a 30-minute task with the invariant checker as the only gatekeeper.
 - **Localized hints** — the code stays English, the teaching can speak
