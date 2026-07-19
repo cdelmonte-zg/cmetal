@@ -902,3 +902,112 @@ That's what makes the byte count (count*width + 7) / 8 — the +7 IS
 the partial byte.
 """,
 ]
+
+# ── 13: Tagged Unions ───────────────────────────────────
+#
+# An enum plus a union: the workhorse of variant data — config values,
+# protocol messages, reusable slots. The tag is a promise only your
+# code keeps.
+
+[[exercises]]
+name = "tagged1"
+dir = "13_tagged_unions"
+test = true
+sanitizers = true
+hints = [
+  """
+Nothing connects the tag to the union but discipline: reading a member
+the tag doesn't vouch for is reading memory that was never written.
+Every accessor must check the tag FIRST — and free() must only run
+for variants that actually own memory.
+""",
+  """
+The accessor contract mirrors error_handling2: on a tag mismatch
+return -1 and leave *out untouched — no partial results.
+  if (v->type != CFG_NUMBER) return -1;
+""",
+  """
+config_free: free only when the tag says CFG_STRING, then reset the
+whole value with *v = config_null() — that also makes a second free
+a harmless no-op. For equality, strings compare with strcmp, not ==
+(function_pointers3, inside a union this time).
+""",
+]
+
+[[exercises]]
+name = "tagged2"
+dir = "13_tagged_unions"
+test = true
+sanitizers = true
+hints = [
+  """
+Two separate diseases: a case that FALLS THROUGH into the next
+(missing break), and a default: that silently swallows every variant
+you forgot — today MSG_CLOSE, tomorrow whatever you add next.
+""",
+  """
+Don't just add the missing case — DELETE the default. With -Wall,
+-Wswitch warns when a switch on an enum misses a case and has no
+default; -Werror makes that a build failure. The compiler becomes
+your exhaustiveness checker.
+""",
+  """
+handle_message: three cases, each ending in break —
+  case MSG_CLOSE: result = -m->as.close.code; break;
+message_type_name: same, return "close" for MSG_CLOSE, and no default
+in the switch (an unreachable return after it satisfies the compiler
+for invalid values).
+""",
+]
+
+[[exercises]]
+name = "tagged3"
+dir = "13_tagged_unions"
+test = true
+sanitizers = true
+hints = [
+  """
+Two moments of truth for a union that OWNS memory: copying it (a
+struct assignment copies the pointer — two owners, one buffer, and
+the second free is a double free) and changing its variant (the old
+payload's lifetime ends there — not freeing it is a leak).
+""",
+  """
+attr_copy: for ATTR_TEXT allocate with CLINGS_MALLOC and copy the
+bytes; return -1 with *dst untouched if the allocation fails (the
+tests force that with clings_fail_next_alloc — a shallow copy that
+allocates nothing cannot honor the contract). Other variants copy
+by value.
+""",
+  """
+Both attr_set_* start the transition by releasing the old payload:
+attr_free(a) does exactly that. In attr_set_text, free the old value
+only AFTER the new allocation succeeded, so a failed allocation
+keeps the slot intact.
+""",
+]
+
+[[exercises]]
+name = "tagged4"
+dir = "13_tagged_unions"
+test = true
+sanitizers = true
+hints = [
+  """
+The idiom's entire contract is one word: FIRST. C11 6.7.2.1p15
+guarantees no padding before a struct's first member, so a pointer to
+the struct and a pointer to its first member are the same address —
+that is what makes the (Node *) upcast valid. Where did Image put its
+header?
+""",
+  """
+Move `Node base;` to the top of Image. The order of the fields AFTER
+the header is free; the header's position is not. Once it's first,
+(Node *)img reads the real tag instead of a pixel count.
+""",
+  """
+Second bug: in node_text_length, the NODE_IMAGE branch downcasts to
+Paragraph — a copy-paste. The tag check buys nothing if the cast that
+follows ignores it. An image has no text: return 0.
+""",
+]

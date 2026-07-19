@@ -14,7 +14,7 @@ that actually hurt.
 
 ## Where we are
 
-Today clings ships 38 exercises across 13 topics (pointers, memory, UB,
+Today clings ships 42 exercises across 14 topics (pointers, memory, UB,
 strings, structs, function pointers, const, error handling, bitwise), a
 watch-mode TUI with progressive hints, sanitizer-backed verification,
 solutions that unlock only after you solve the exercise, and a
@@ -68,8 +68,9 @@ chapters.
 
 - **Bytes on the wire** ✓ — endianness, defensive varints, bit packing
   (topic 12).
-- **Tagged unions and value representation** — the heart of every
-  interpreter's `Value`.
+- **Tagged unions and value representation** ✓ — tag discipline,
+  exhaustive dispatch, ownership across variants, and the header-first
+  struct idiom (topic 13).
 - **Hash tables from scratch** — FNV-1a, open addressing, tombstones,
   string interning.
 - **Arena allocators** — ownership at scale, lifetime by construction.
