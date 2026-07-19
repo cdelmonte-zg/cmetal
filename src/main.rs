@@ -73,14 +73,22 @@ static CURRICULUM_TGZ: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/curricu
 /// interchangeable — the clone remains the contributor/compat mode.
 fn cmd_init(dir: Option<PathBuf>) -> Result<()> {
     let target = dir.unwrap_or_else(|| PathBuf::from("clings-workspace"));
-    if target.join("info.toml").exists() {
-        anyhow::bail!(
-            "{} already contains a clings workspace (info.toml found)",
-            target.display()
-        );
+    // Never extract into a directory that already has content: the
+    // archive contains entries named exercises/, solutions/, include/
+    // and info.toml, and unpacking must not be able to clobber a
+    // user's files (think `clings init .` in a project directory).
+    // No --force escape hatch until an explicit update semantics
+    // exists.
+    if target.exists() {
+        let mut entries = std::fs::read_dir(&target)
+            .with_context(|| format!("Failed to inspect {}", target.display()))?;
+        if entries.next().transpose()?.is_some() {
+            anyhow::bail!("{} already exists and is not empty", target.display());
+        }
+    } else {
+        std::fs::create_dir_all(&target)
+            .with_context(|| format!("Failed to create {}", target.display()))?;
     }
-    std::fs::create_dir_all(&target)
-        .with_context(|| format!("Failed to create {}", target.display()))?;
 
     let decoder = flate2::read::GzDecoder::new(CURRICULUM_TGZ);
     let mut archive = tar::Archive::new(decoder);

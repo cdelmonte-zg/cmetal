@@ -468,6 +468,42 @@ fn cli_init_creates_selfcontained_workspace() {
         "init must not overwrite a workspace"
     );
 
+    // ...and must refuse ANY non-empty directory, leaving it untouched
+    let occupied = tmp.path().join("occupied");
+    std::fs::create_dir(&occupied).unwrap();
+    std::fs::write(occupied.join("keep.txt"), "do not overwrite").unwrap();
+    let output = Command::new(clings_bin())
+        .arg("init")
+        .arg(&occupied)
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(
+        !output.status.success(),
+        "init must refuse a non-empty directory"
+    );
+    assert_eq!(
+        std::fs::read_to_string(occupied.join("keep.txt")).unwrap(),
+        "do not overwrite"
+    );
+    assert!(!occupied.join("info.toml").exists());
+
+    // An existing but EMPTY directory is fine
+    let empty = tmp.path().join("empty");
+    std::fs::create_dir(&empty).unwrap();
+    let output = Command::new(clings_bin())
+        .arg("init")
+        .arg(&empty)
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "init must accept an empty directory: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(empty.join("info.toml").exists());
+
     // The engine treats the workspace exactly like a repo checkout
     if has_gcc() {
         let output = Command::new(clings_bin())
