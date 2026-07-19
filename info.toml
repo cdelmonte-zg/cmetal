@@ -129,7 +129,7 @@ If realloc fails, you've lost the original pointer! Use a temp variable,
 and make failure part of the contract (the tests already call it):
   int dynarray_push(DynArray *da, int value) {
     ...
-    int *tmp = realloc(da->items, ...);
+    int *tmp = CLINGS_REALLOC(da->items, ...);
     if (!tmp) return -1;   /* array untouched, caller informed */
     da->items = tmp;
     ...
@@ -527,8 +527,9 @@ Return an error value (like -1 or 0) when the stack is empty.
 The test checks that stack_pop on an empty stack returns a sentinel.
 """,
   """
-In stack_push(), when the array is full, double the capacity with realloc.
-Use a temporary pointer to avoid losing data if realloc fails — and make
+In stack_push(), when the array is full, double the capacity with
+CLINGS_REALLOC (an alias of realloc that the tests can force to fail).
+Use a temporary pointer to avoid losing data if it fails — and make
 the failure part of the contract: stack_push returns int (0 on success,
 -1 on failure, stack untouched). The demo and the tests already call the
 new signature; update capacity only after realloc succeeds.
@@ -593,7 +594,8 @@ bytes. Cast to char* / unsigned char* so the arithmetic is in bytes:
 """,
   """
 The element size is only known at runtime, so allocate the swap buffer
-with malloc(size) and free it before returning. If malloc fails, return
+with CLINGS_MALLOC(size) — an alias of malloc that the failure test can
+force to fail — and free it before returning. If it fails, return
 -1 without touching the array; return 0 on success — the tests already
 call the int-returning contract. (A fixed tmp[64] silently overflows
 for bigger elements: that is what test_sort_large_elements catches.)

@@ -11,6 +11,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "clings_alloc.h"
 
 typedef struct {
     int *data;
@@ -46,7 +47,7 @@ void stack_push(Stack *s, int value) {
         //
         // TODO: Use a temporary pointer, and return -1 without touching
         // the stack if the allocation failed.
-        s->data = realloc(s->data, sizeof(int) * (size_t)s->capacity);
+        s->data = CLINGS_REALLOC(s->data, sizeof(int) * (size_t)s->capacity);
     }
     s->data[s->top] = value;
     s->top++;
@@ -149,10 +150,22 @@ TEST(test_growth) {
     stack_destroy(s);
 }
 
-/* Note: the failure branch of the contract (realloc returning NULL,
- * push returning -1 with the stack untouched) is NOT exercised by
- * these tests — forcing an allocation failure deterministically would
- * need an injectable allocator. The contract still requires it. */
+TEST(test_push_failure_leaves_stack_untouched) {
+    Stack *s = stack_create(2);
+    ASSERT_EQ(stack_push(s, 1), 0);
+    ASSERT_EQ(stack_push(s, 2), 0);
+    int *data_before = s->data;
+    clings_fail_next_alloc();          /* the growth realloc will fail */
+    ASSERT_EQ(stack_push(s, 3), -1);
+    ASSERT_EQ(stack_size(s), 2);
+    ASSERT_EQ(s->capacity, 2);
+    ASSERT(s->data == data_before);
+    ASSERT_EQ(stack_peek(s), 2);
+    /* the stack must still work after the failed push */
+    ASSERT_EQ(stack_push(s, 3), 0);
+    ASSERT_EQ(stack_pop(s), 3);
+    stack_destroy(s);
+}
 
 int main(void) {
     RUN_TEST(test_create_and_destroy);
@@ -160,6 +173,7 @@ int main(void) {
     RUN_TEST(test_peek);
     RUN_TEST(test_empty_pop);
     RUN_TEST(test_growth);
+    RUN_TEST(test_push_failure_leaves_stack_untouched);
     TEST_REPORT();
 }
 #endif
