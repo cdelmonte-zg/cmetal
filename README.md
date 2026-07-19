@@ -209,7 +209,7 @@ cmetal reset [name]          # all: clear progress; one: restore its file
 
 ---
 
-## Exercises (59 total)
+## Exercises (62 total)
 
 | Topic                 | #  | What you will learn                                 |
 |-----------------------|----|-----------------------------------------------------|
@@ -232,6 +232,7 @@ cmetal reset [name]          # all: clear progress; one: restore its file
 | 16 Garbage Collection | 3  | Mark-sweep: reachability, cycles, sweep discipline, finalization |
 | 17 NaN Boxing         | 3  | IEEE-754 bit layout, legal punning, mask discipline, payload packing |
 | 18 Bytecode Dispatch  | 3  | Defensive stream decoding, refusable stacks, jump-table discipline |
+| 19 Capstone           | 3  | A binary format end to end: writing, validating, owning |
 
 ---
 

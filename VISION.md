@@ -14,7 +14,7 @@ that actually hurt.
 
 ## Where we are
 
-Today cmetal ships 59 exercises across 19 topics (pointers, memory, UB,
+Today cmetal ships 62 exercises across 20 topics (pointers, memory, UB,
 strings, structs, function pointers, const, error handling, bitwise), a
 watch-mode TUI with progressive hints, sanitizer-backed verification,
 solutions that unlock only after you solve the exercise, and a
@@ -80,7 +80,7 @@ chapters.
 - **NaN boxing** ✓ and **bytecode dispatch** ✓ (the portable switch,
   and computed goto — a GNU C extension both gcc and clang accept,
   enabled via per-exercise flags).
-- **Capstone:** serialize, validate and reload a bytecode chunk —
+- **Capstone:** ✓ serialize, validate and reload a bytecode chunk —
   magic, version, constant pool, code stream.
 
 Alongside the track, the foundations keep deepening: proper arcs for

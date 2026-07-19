@@ -1497,3 +1497,92 @@ switch, but with no -Wimplicit-fallthrough to warn. Every handler
 ends with DISPATCH() or a return.
 """,
 ]
+
+# ── 19: Capstone — a binary format end to end ───────────
+#
+# The implementation track converges: a bytecode chunk crosses a file
+# boundary. Writing (the layout is the contract), validating (the
+# file's claims are claims), loading (own what you keep). Encodings,
+# overflow-safe bounds, ownership and the allocator seam, all in one
+# format.
+
+[[exercises]]
+name = "capstone1"
+dir = "19_capstone"
+test = true
+sanitizers = true
+hints = [
+  """
+Two independent bugs. Compare the layout table in the header with
+what the code writes, field by field: does 'needed' cover every row
+of the table? Does the const_count field contain what the table says
+it contains?
+""",
+  """
+needed = 8 + const_count * 8 + 4 + code_len — the check must cover
+the WHOLE write, including the code bytes the memcpy at the end
+emits. The golden-bytes test compares the output byte for byte, so
+any field written wrong shows up as a mismatch at its offset.
+""",
+  """
+The const_count field is the number of CONSTANTS (elements), not of
+bytes: write_u16_le(buf + 6, (uint16_t)c->const_count). A length
+field that silently changes unit breaks every reader that honors the
+contract — state the unit, then honor it.
+""",
+]
+
+[[exercises]]
+name = "capstone2"
+dir = "19_capstone"
+test = true
+sanitizers = true
+hints = [
+  """
+The file's header is the FILE's claim, not the truth. Three checks
+are missing: the magic, the version, and whether the declared counts
+actually fit in the buffer you were handed. Each has its own error
+code — the tests ask for the specific one.
+""",
+  """
+Magic: memcmp(buf, CHUNK_MAGIC, 4) != 0 -> ERR_BAD_MAGIC. Version:
+read_u16_le(buf + 4) != CHUNK_VERSION -> ERR_BAD_VERSION. An unknown
+version is a different layout, not a compatible one — misreading it
+as version 1 is corruption with extra steps.
+""",
+  """
+Bounds, overflow-safe (the arena1 form at the file border): check
+const_count > (len - off) / 8 BEFORE advancing, then len - off < 4
+for the code_len field, then code_len > len - off. Compare against
+what remains — never compute off + count * 8 first, sums can wrap
+where subtractions (with off <= len established) cannot.
+""",
+]
+
+[[exercises]]
+name = "capstone3"
+dir = "19_capstone"
+test = true
+sanitizers = true
+hints = [
+  """
+One mindset, two symptoms: the loader copies the constants but
+"borrows" the code from the buffer, and chunk_free — consistent with
+the borrow — frees only the constants. The contract says the chunk
+owns everything it keeps. Trash the buffer after loading (the
+independence test does) and watch which field changes.
+""",
+  """
+Copy the code like the constants: allocate code_len bytes through
+CMETAL_MALLOC, memcpy from buf + off. If that SECOND allocation
+fails, free the constants allocated before it and return ERR_ALLOC —
+error paths unwind what already succeeded (tagged3's rule at a file
+border).
+""",
+  """
+chunk_free releases both: free(c->consts); free(c->code). What load
+acquires, free releases — the demo's leak check counts every code
+buffer left behind, and the use-after-free it shows first is the
+borrow being read after free(buf).
+""",
+]
