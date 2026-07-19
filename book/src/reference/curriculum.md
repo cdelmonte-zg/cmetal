@@ -1,6 +1,6 @@
 # The curriculum
 
-clings ships **35 exercises across 12 topics**, ordered roughly from warm-up to
+clings ships **38 exercises across 13 topics**, ordered roughly from warm-up to
 the parts of C that bite in code review. Each is a real bug — the kind found in
 production C — never a fill-in-the-blanks template.
 
@@ -18,6 +18,7 @@ production C — never a fill-in-the-blanks template.
 | 09 | Const Correctness     | 3         | `const` parameters, pointer-to-const, immutable API  |
 | 10 | Error Handling        | 3         | Return codes, error propagation, error context       |
 | 11 | Bitwise               | 3         | Bit counting, packing/unpacking, bit tricks          |
+| 12 | Encodings             | 3         | Endianness, varints, bit packing — bytes on the wire |
 
 ## How the topics build
 

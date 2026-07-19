@@ -39,7 +39,7 @@ unlocks in `my_solutions/` so you can compare it with yours.
 
 ## What it is for
 
-- **Deliberate practice on hard C.** 35 exercises across 12 topics, from
+- **Deliberate practice on hard C.** 38 exercises across 13 topics, from
   pointer decay to bit-packing, each built around a bug you will actually meet
   in production code. See [the curriculum](reference/curriculum.md).
 - **Real toolchains, not a sandbox.** gcc and clang, AddressSanitizer and

@@ -209,7 +209,7 @@ clings reset [name]          # all: clear progress; one: restore its file
 
 ---
 
-## Exercises (35 total)
+## Exercises (38 total)
 
 | Topic                 | #  | What you will learn                                 |
 |-----------------------|----|-----------------------------------------------------|
@@ -225,6 +225,7 @@ clings reset [name]          # all: clear progress; one: restore its file
 | 09 Const Correctness  | 3  | `const` parameters, pointer-to-const, immutable API  |
 | 10 Error Handling     | 3  | Return codes, error propagation, error context       |
 | 11 Bitwise            | 3  | Bit counting, packing/unpacking, bit tricks          |
+| 12 Encodings          | 3  | Endianness, varints, bit packing — bytes on the wire |
 
 ---
 
