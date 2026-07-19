@@ -210,6 +210,29 @@ TEST(test_share_duplicates_the_name) {
     ASSERT_EQ(obj_share_name(b, a), 0);
     ASSERT_STR_EQ(b->name, "shared");
     ASSERT(a->name != b->name);
+    /* self-share is a valid (if pointless) request */
+    ASSERT_EQ(obj_share_name(a, a), 0);
+    ASSERT_STR_EQ(a->name, "shared");
+    heap_destroy(&h);
+}
+
+TEST(test_share_failure_leaves_destination_unchanged) {
+    // The contract's other half: -1 AND dst unchanged. Destroying
+    // dst's old name before the new allocation succeeded would pass
+    // every success-path test — this one pins the failure path.
+    Heap h;
+    heap_init(&h);
+    Obj *src = heap_new(&h);
+    Obj *dst = heap_new(&h);
+    ASSERT(src != NULL);
+    ASSERT(dst != NULL);
+    ASSERT_EQ(obj_set_name(src, "source"), 0);
+    ASSERT_EQ(obj_set_name(dst, "keep"), 0);
+    cmetal_fail_next_alloc();
+    ASSERT_EQ(obj_share_name(dst, src), -1);
+    ASSERT(dst->name != NULL); /* "unchanged" includes not-nulled */
+    ASSERT_STR_EQ(dst->name, "keep");
+    ASSERT_STR_EQ(src->name, "source");
     heap_destroy(&h);
 }
 
@@ -242,6 +265,7 @@ TEST(test_set_name_failure_leaves_object_unchanged) {
 int main(void) {
     RUN_TEST(test_set_name_owns_a_copy);
     RUN_TEST(test_share_duplicates_the_name);
+    RUN_TEST(test_share_failure_leaves_destination_unchanged);
     RUN_TEST(test_collected_objects_release_their_names);
     RUN_TEST(test_set_name_failure_leaves_object_unchanged);
     TEST_REPORT();
