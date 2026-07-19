@@ -44,11 +44,7 @@ impl AppState {
         if let Some(current_name) = lines.next() {
             let current_name = current_name.trim();
             if !current_name.is_empty() {
-                if let Some(idx) = self
-                    .exercises
-                    .iter()
-                    .position(|e| e.name() == current_name)
-                {
+                if let Some(idx) = self.exercises.iter().position(|e| e.name() == current_name) {
                     self.current_index = idx;
                 }
             }

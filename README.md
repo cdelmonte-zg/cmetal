@@ -58,13 +58,7 @@ tar -xzf clings-<version>-<target>.tar.gz
 sudo mv clings-<version>-<target>/clings /usr/local/bin/
 ```
 
-You still need this repository for the exercises:
-
-```bash
-git clone https://github.com/cdelmonte-zg/clings.git
-cd clings
-clings
-```
+Then create a workspace (see below) or clone this repository.
 
 > **macOS:** the binaries are not code-signed yet; if Gatekeeper blocks
 > the first run, clear the quarantine flag with
@@ -77,6 +71,21 @@ git clone https://github.com/cdelmonte-zg/clings.git
 cd clings
 cargo install --path .
 ```
+
+### Create a workspace — no clone needed
+
+The binary embeds the full curriculum. Wherever you installed it from,
+this is all it takes:
+
+```bash
+clings init my-clings-course   # or just `clings init`
+cd my-clings-course
+clings
+```
+
+Cloning the repository still works exactly as before and remains the
+way to contribute exercises or follow unreleased changes; for learning,
+`clings init` is the shortest path.
 
 ## Upgrade
 
@@ -171,6 +180,7 @@ python3 scripts/check_exercises.py          # the invariant gatekeeper
 ### CLI subcommands
 
 ```bash
+clings init [dir]            # create a self-contained workspace
 clings run <name>            # run a specific exercise
 clings hint <name> --level 2 # show first 2 hints
 clings solution <name>       # reveal the solution (once solved)

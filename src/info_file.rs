@@ -71,8 +71,7 @@ impl ExerciseInfo {
 
 impl InfoFile {
     pub fn parse_str(content: &str) -> Result<Self> {
-        let info: InfoFile =
-            toml::from_str(content).with_context(|| "Failed to parse TOML")?;
+        let info: InfoFile = toml::from_str(content).with_context(|| "Failed to parse TOML")?;
         if info.format_version != 1 {
             anyhow::bail!(
                 "Unsupported info.toml format_version: {}",
@@ -85,8 +84,7 @@ impl InfoFile {
     pub fn parse(path: &Path) -> Result<Self> {
         let content = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read {}", path.display()))?;
-        Self::parse_str(&content)
-            .with_context(|| format!("Failed to parse {}", path.display()))
+        Self::parse_str(&content).with_context(|| format!("Failed to parse {}", path.display()))
     }
 }
 
