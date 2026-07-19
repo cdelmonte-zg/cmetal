@@ -14,7 +14,7 @@ that actually hurt.
 
 ## Where we are
 
-Today cmetal ships 42 exercises across 14 topics (pointers, memory, UB,
+Today cmetal ships 47 exercises across 15 topics (pointers, memory, UB,
 strings, structs, function pointers, const, error handling, bitwise), a
 watch-mode TUI with progressive hints, sanitizer-backed verification,
 solutions that unlock only after you solve the exercise, and a
@@ -71,8 +71,8 @@ chapters.
 - **Tagged unions and value representation** ✓ — tag discipline,
   exhaustive dispatch, ownership across variants, and the header-first
   struct idiom (topic 13).
-- **Hash tables from scratch** — FNV-1a, open addressing, tombstones,
-  string interning.
+- **Hash tables from scratch** ✓ — FNV-1a, open addressing,
+  tombstones, rehash on growth, string interning (topic 14).
 - **Arena allocators** — ownership at scale, lifetime by construction.
 - **A mark-sweep GC on a toy heap** — with AddressSanitizer as the
   judge, because a GC bug *is* a use-after-free.
