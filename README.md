@@ -1,5 +1,6 @@
 [![CI](https://github.com/cdelmonte-zg/cmetal/actions/workflows/ci.yml/badge.svg)](https://github.com/cdelmonte-zg/cmetal/actions/workflows/ci.yml)
 [![Docs](https://github.com/cdelmonte-zg/cmetal/actions/workflows/pages.yml/badge.svg)](https://cdelmonte-zg.github.io/cmetal/)
+[![crates.io](https://img.shields.io/crates/v/cmetal.svg)](https://crates.io/crates/cmetal)
 
 ```
                      _        _ 
@@ -47,7 +48,15 @@ the watch-mode loop, the curriculum, and how verification works.
 brew install cdelmonte-zg/tap/cmetal
 ```
 
-### Option 2: prebuilt binary (no Rust required)
+### Option 2: Cargo (crates.io)
+
+With a Rust toolchain installed:
+
+```bash
+cargo install cmetal
+```
+
+### Option 3: prebuilt binary (no Rust required)
 
 Download the archive for your platform from the
 [latest release](https://github.com/cdelmonte-zg/cmetal/releases/latest),
@@ -64,7 +73,7 @@ Then create a workspace (see below) or clone this repository.
 > the first run, clear the quarantine flag with
 > `xattr -d com.apple.quarantine $(which cmetal)`.
 
-### Option 3: build from source
+### Option 4: build from source
 
 ```bash
 git clone https://github.com/cdelmonte-zg/cmetal.git
@@ -94,6 +103,7 @@ installed it:
 
 ```bash
 brew upgrade cmetal              # Homebrew
+cargo install cmetal             # crates.io (picks up the newest release)
 cargo install --path . --force   # built from source
 ```
 
@@ -120,7 +130,7 @@ Remove the binary, matching how you installed it:
 ```bash
 brew uninstall cmetal            # Homebrew
 sudo rm /usr/local/bin/cmetal    # prebuilt binary
-cargo uninstall cmetal           # built from source
+cargo uninstall cmetal           # crates.io or built from source
 ```
 
 Everything else — your progress, `my_exercises/`, revealed solutions —

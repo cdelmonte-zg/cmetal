@@ -10,8 +10,8 @@ you the binary.
 
 - **gcc and/or clang** with C11 support — the exercises are compiled with your
   system toolchain.
-- **git and a Rust toolchain** — only to contribute or build the binary
-  from source; learning needs neither.
+- **git and a Rust toolchain** — only to contribute, or to install via
+  Cargo / build from source; learning needs neither.
 
 ## Option 1 — Homebrew (macOS, Linux)
 
@@ -21,7 +21,15 @@ No Rust required.
 brew install cdelmonte-zg/tap/cmetal
 ```
 
-## Option 2 — prebuilt binary
+## Option 2 — Cargo (crates.io)
+
+With a Rust toolchain installed:
+
+```bash
+cargo install cmetal
+```
+
+## Option 3 — prebuilt binary
 
 No Rust required. Download the archive for your platform from the
 [latest release](https://github.com/cdelmonte-zg/cmetal/releases/latest), then:
@@ -35,7 +43,7 @@ sudo mv cmetal-<version>-<target>/cmetal /usr/local/bin/
 > first run, clear the quarantine flag:
 > `xattr -d com.apple.quarantine $(which cmetal)`.
 
-## Option 3 — build from source
+## Option 4 — build from source
 
 ```bash
 git clone https://github.com/cdelmonte-zg/cmetal.git
@@ -73,6 +81,7 @@ installed it:
 
 ```bash
 brew upgrade cmetal              # Homebrew
+cargo install cmetal             # crates.io (picks up the newest release)
 cargo install --path . --force   # built from source
 ```
 
@@ -100,7 +109,7 @@ Remove the binary, matching how you installed it:
 ```bash
 brew uninstall cmetal            # Homebrew
 sudo rm /usr/local/bin/cmetal    # prebuilt binary
-cargo uninstall cmetal           # built from source
+cargo uninstall cmetal           # crates.io or built from source
 ```
 
 Everything else — your progress, `my_exercises/`, revealed solutions — lives
