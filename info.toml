@@ -1229,3 +1229,91 @@ test_result_escapes_the_arena checks structurally that the result is
 not arena-owned; the demo checks it the hard way, after destroy.
 """,
 ]
+
+# ── 16: Garbage Collection ──────────────────────────────
+#
+# When references form a graph with cycles, ownership stops being a
+# tree and free() has no single home: reachability from roots decides
+# what lives. Mark, sweep, finalize.
+
+[[exercises]]
+name = "gc1"
+dir = "16_gc"
+test = true
+sanitizers = true
+hints = [
+  """
+Mark is graph traversal with a visited set — and the visited set is
+already in the struct: the marked flag. Two properties to restore:
+every reference is followed (not just refs[0]), and an already-marked
+object is not entered again (or a cycle recurses until the stack
+dies).
+""",
+  """
+The guard comes FIRST:
+  if (o->marked) return;
+  o->marked = true;
+Then the traversal is a loop over ref_count, recursing into each.
+""",
+  """
+The tests count live objects: a root with two children keeps 3 alive
+(kills the refs[0]-only walk), and a rooted A<->B cycle keeps 2 alive
+and TERMINATES (kills the missing guard). Unrooting the cycle then
+collects both — cycles are garbage like anything else once
+unreachable.
+""",
+]
+
+[[exercises]]
+name = "gc2"
+dir = "16_gc"
+test = true
+sanitizers = true
+hints = [
+  """
+Two disciplines: freed objects must leave the all-list (or the next
+walk threads through freed memory — the sweep's own loop already
+reads o->next from a corpse), and marks must be cleared at the start
+of every collection (or "reachable once" means "immortal").
+""",
+  """
+Unlink with a pointer to pointer:
+  Obj **link = &h->all;
+  while (*link) {
+      Obj *o = *link;
+      if (!o->marked) { *link = o->next; free(o); ... }
+      else            { link = &o->next; }
+  }
+One assignment removes any node — the head included, no special case.
+""",
+  """
+Clear the marks in a first pass over the all-list, BEFORE marking
+from roots. test_marks_do_not_leak_across_collections is the
+scenario: reachable today, unrooted tomorrow — the next collection
+must reclaim it.
+""",
+]
+
+[[exercises]]
+name = "gc3"
+dir = "16_gc"
+test = true
+sanitizers = true
+hints = [
+  """
+Two ownership decisions: the sweep must free what the object OWNS
+(the name goes with the container — the demo's leak check counts the
+strings left behind), and sharing contents must not share the
+BUFFER: two owners of one allocation is a double free at sweep time.
+""",
+  """
+In the sweep: free(o->name) before free(o) — finalize, then release.
+heap_destroy already does it; the sweep must match.
+""",
+  """
+obj_share_name duplicates: allocate len+1 (CMETAL_MALLOC), copy, and
+free dst's OLD name only after the new allocation succeeded — a
+failed share leaves dst unchanged (tagged3's transition rule). The
+structural test pins a->name != b->name after sharing.
+""",
+]

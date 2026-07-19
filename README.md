@@ -209,7 +209,7 @@ cmetal reset [name]          # all: clear progress; one: restore its file
 
 ---
 
-## Exercises (50 total)
+## Exercises (53 total)
 
 | Topic                 | #  | What you will learn                                 |
 |-----------------------|----|-----------------------------------------------------|
@@ -229,6 +229,7 @@ cmetal reset [name]          # all: clear progress; one: restore its file
 | 13 Tagged Unions      | 4  | Tag discipline, exhaustive dispatch, ownership, header-first polymorphism |
 | 14 Hash Tables        | 5  | FNV-1a, probing, tombstones, rehash on growth, interning |
 | 15 Arenas             | 3  | Bump allocation, alignment, chained growth, escape discipline |
+| 16 Garbage Collection | 3  | Mark-sweep: reachability, cycles, sweep discipline, finalization |
 
 ---
 
