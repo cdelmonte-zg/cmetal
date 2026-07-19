@@ -368,6 +368,47 @@ fn cli_run_specific_exercise() {
 }
 
 #[test]
+fn cli_run_and_verify_persist_state() {
+    if !has_gcc() {
+        eprintln!("skipping: gcc not available");
+        return;
+    }
+
+    let tmp = TempDir::new().unwrap();
+    setup_project(
+        tmp.path(),
+        &[
+            ("ok1", "00_intro", "int main(void) { return 0; }\n"),
+            ("ok2", "00_intro", "int main(void) { return 0; }\n"),
+        ],
+    );
+
+    // A passing `clings run` must mark the exercise done...
+    let output = Command::new(clings_bin())
+        .args(["run", "ok1"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let state = std::fs::read_to_string(tmp.path().join(".clings-state.txt"))
+        .expect("run must write the state file");
+    assert!(state.contains("ok1"), "run must mark the exercise done");
+
+    // ...and `clings verify` must persist every exercise that passed.
+    let output = Command::new(clings_bin())
+        .arg("verify")
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let state = std::fs::read_to_string(tmp.path().join(".clings-state.txt")).unwrap();
+    assert!(
+        state.contains("ok1") && state.contains("ok2"),
+        "verify must mark passing exercises done, state:\n{state}"
+    );
+}
+
+#[test]
 fn cli_hint_shows_hint_text() {
     if !has_gcc() {
         eprintln!("skipping: gcc not available");

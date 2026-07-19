@@ -184,6 +184,8 @@ fn main() -> Result<()> {
                         path.display()
                     ));
                 }
+                state.mark_done(&name);
+                state.save()?;
             } else {
                 term::print_error(&format!(
                     "{} failed at stage: {}",
@@ -313,6 +315,7 @@ fn main() -> Result<()> {
             println!();
 
             let mut all_passed = true;
+            let mut passed_names = Vec::new();
             for exercise in &state.exercises {
                 if !exercise.supported {
                     term::print_warning(&format!(
@@ -330,6 +333,7 @@ fn main() -> Result<()> {
                     Ok(result) => {
                         if result.success {
                             term::print_success(exercise.name());
+                            passed_names.push(exercise.name().to_string());
                         } else {
                             term::print_error(&format!(
                                 "{} (failed at: {})",
@@ -345,6 +349,11 @@ fn main() -> Result<()> {
                     }
                 }
             }
+
+            for name in &passed_names {
+                state.mark_done(name);
+            }
+            state.save()?;
 
             println!();
             if all_passed {
