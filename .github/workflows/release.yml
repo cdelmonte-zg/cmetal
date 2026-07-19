@@ -79,6 +79,40 @@ jobs:
             cmetal-*.tar.gz.sha256
           generate_release_notes: true
 
+  publish-crate:
+    name: Publish to crates.io
+    needs: release
+    runs-on: ubuntu-latest
+    # skip prereleases like v0.2.0-rc1
+    if: ${{ !contains(github.ref_name, '-') }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          VERSION_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CARGO_REGISTRY_TOKEN}" ]; then
+            echo "::warning::CARGO_REGISTRY_TOKEN not set - skipping crates.io publish (run cargo publish manually)"
+            exit 0
+          fi
+
+          # idempotent on workflow reruns: skip if this version is
+          # already on the registry
+          VERSION="${VERSION_TAG#v}"
+          if curl -fsSL -A "cmetal-release-workflow" \
+               "https://crates.io/api/v1/crates/cmetal/${VERSION}" >/dev/null 2>&1; then
+            echo "cmetal ${VERSION} already on crates.io - skipping"
+            exit 0
+          fi
+
+          cargo publish --locked
+
   update-homebrew-tap:
     name: Update Homebrew tap
     needs: release
@@ -146,9 +180,9 @@ jobs:
 
             def caveats
               <<~EOS
-                cmetal needs the exercises repository to run:
-                  git clone https://github.com/cdelmonte-zg/cmetal.git
-                  cd cmetal && cmetal
+                The curriculum is embedded in the binary. To get started:
+                  cmetal init my-c-exercises
+                  cd my-c-exercises && cmetal
                 A C compiler with C11 support (gcc or clang) is also required.
               EOS
             end
