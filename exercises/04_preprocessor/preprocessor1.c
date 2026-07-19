@@ -17,15 +17,18 @@
 // Example: CONCAT(foo, bar) should produce the identifier foobar
 #define CONCAT(a, b) a b
 
-// TODO: Fix this macro. It should create a debug print statement.
-// DEBUG_VAR(x) should print: "x = <value of x>"
-// Hint: you need STRINGIFY and printf with %d format.
-#define DEBUG_VAR(var) printf("%s = %d\n", "var", var)
+// TODO: Fix this macro. It should format "name = <value>" into buf,
+// where name is the VARIABLE'S NAME: with int x = 42,
+// FORMAT_VAR(buf, size, x) must produce "x = 42".
+// Hint: you need STRINGIFY and snprintf with %d format.
+#define FORMAT_VAR(buf, size, var) snprintf(buf, size, "%s = %d", "var", var)
 
 #ifndef TEST
 int main(void) {
     int my_value = 42;
-    DEBUG_VAR(my_value);
+    char buf[64];
+    FORMAT_VAR(buf, sizeof buf, my_value);
+    printf("%s\n", buf);
 
     printf("STRINGIFY test: %s\n", STRINGIFY(hello_world));
 
@@ -50,15 +53,17 @@ TEST(test_concat) {
     ASSERT_EQ(CONCAT(test, 123), 99);
 }
 
-TEST(test_debug_var) {
+TEST(test_format_var) {
     int some_var = 7;
-    DEBUG_VAR(some_var);  // Should print "some_var = 7"
+    char buf[64];
+    FORMAT_VAR(buf, sizeof buf, some_var);
+    ASSERT_STR_EQ(buf, "some_var = 7");
 }
 
 int main(void) {
     RUN_TEST(test_stringify);
     RUN_TEST(test_concat);
-    RUN_TEST(test_debug_var);
+    RUN_TEST(test_format_var);
     TEST_REPORT();
 }
 #endif

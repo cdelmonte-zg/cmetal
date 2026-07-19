@@ -45,6 +45,15 @@ int main(void) {
 #else
 #include "clings_test.h"
 
+TEST(test_swap_direct) {
+    /* swap() is part of the exercise: it must work on its own,
+     * not just happen to be unused by a rewritten reverse_array. */
+    int a = 1, b = 2;
+    swap(&a, &b);
+    ASSERT_EQ(a, 2);
+    ASSERT_EQ(b, 1);
+}
+
 TEST(test_reverse_five) {
     int a[] = {1, 2, 3, 4, 5};
     reverse_array(a, 5);
@@ -65,6 +74,7 @@ TEST(test_reverse_one) {
 }
 
 int main(void) {
+    RUN_TEST(test_swap_direct);
     RUN_TEST(test_reverse_five);
     RUN_TEST(test_reverse_two);
     RUN_TEST(test_reverse_one);

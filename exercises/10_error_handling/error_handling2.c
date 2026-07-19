@@ -20,6 +20,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 
 // Helper: returns 1 if s contains only digits (with optional leading '-'), 0 otherwise
 static int is_valid_int(const char *s, int len) {
@@ -35,9 +36,11 @@ static int is_valid_int(const char *s, int len) {
     return 1;
 }
 
-// Helper: simple string-to-int (no error checking — caller uses is_valid_int first)
-static int parse_int(const char *s, int len) {
-    int result = 0;
+// Helper: string-to-int with RANGE checking (digit validation is
+// is_valid_int's job). Returns 0 and stores the value through out, or
+// -1 if the number does not fit in an int. Writes *out only on success.
+static int parse_int(const char *s, int len, int *out) {
+    long long result = 0;
     int negative = 0;
     int start = 0;
     if (s[0] == '-') {
@@ -46,8 +49,11 @@ static int parse_int(const char *s, int len) {
     }
     for (int i = start; i < len; i++) {
         result = result * 10 + (s[i] - '0');
+        if (result > (long long)INT_MAX + 1) return -1;  /* too big already */
     }
-    return negative ? -result : result;
+    if (!negative && result > INT_MAX) return -1;
+    *out = (int)(negative ? -result : result);
+    return 0;
 }
 
 int read_pair(const char *input, int *a, int *b) {
@@ -71,12 +77,12 @@ int read_pair(const char *input, int *a, int *b) {
     // BUG: Calls is_valid_int but ignores the result!
     // Should return -3 if the first number is invalid.
     is_valid_int(input, first_len);
-    *a = parse_int(input, first_len);
+    if (parse_int(input, first_len, a) != 0) return -3;  /* range check */
 
     // BUG: Same problem — ignores validation result.
     // Should return -4 if the second number is invalid.
     is_valid_int(comma + 1, second_len);
-    *b = parse_int(comma + 1, second_len);
+    if (parse_int(comma + 1, second_len, b) != 0) return -4;  /* range check */
 
     return 0;
 }
@@ -176,6 +182,16 @@ TEST(test_invalid_second_number) {
     ASSERT_EQ(b, 99);
 }
 
+TEST(test_number_too_big_for_int) {
+    int a = 99, b = 99;
+    /* 10 digits: all digits (passes is_valid_int), but does not fit in
+     * an int — parsing must fail cleanly instead of overflowing. */
+    int err = read_pair("9999999999,1", &a, &b);
+    ASSERT_EQ(err, -3);
+    ASSERT_EQ(a, 99);
+    ASSERT_EQ(b, 99);
+}
+
 TEST(test_empty_before_comma) {
     int a = 99, b = 99;
     int err = read_pair(",5", &a, &b);
@@ -202,6 +218,7 @@ int main(void) {
     RUN_TEST(test_missing_comma);
     RUN_TEST(test_invalid_first_number);
     RUN_TEST(test_invalid_second_number);
+    RUN_TEST(test_number_too_big_for_int);
     RUN_TEST(test_empty_before_comma);
     RUN_TEST(test_empty_after_comma);
     TEST_REPORT();
