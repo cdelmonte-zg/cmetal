@@ -1,6 +1,6 @@
 [package]
 name = "clings"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "Small exercises to learn advanced C concepts - inspired by rustlings"
 license = "MIT"
