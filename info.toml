@@ -1010,3 +1010,137 @@ Paragraph — a copy-paste. The tag check buys nothing if the cast that
 follows ignores it. An image has no text: return 0.
 """,
 ]
+
+# ── 14: Hash Tables ─────────────────────────────────────
+#
+# From the hash function to a growing, deleting, interning table —
+# the index structure behind caches, routing tables and symbol pools.
+
+[[exercises]]
+name = "hash1"
+dir = "14_hash_tables"
+test = true
+sanitizers = true
+hints = [
+  """
+Two details ARE the algorithm: FNV-1a means xor-the-byte FIRST, then
+multiply by the prime (multiply-first is FNV-1, a different function
+with different published vectors) — and the byte must be UNSIGNED.
+""",
+  """
+`char` is signed on our targets: for bytes >= 0x80, (uint32_t)*p
+sign-extends to 0xFFFFFFxx before the xor. Cast through uint8_t:
+  hash ^= (uint8_t)*p;
+""",
+  """
+The fixed loop body, in order:
+  hash ^= (uint8_t)*p;
+  hash *= FNV_PRIME;
+The tests pin published vectors — if "" and "a" pass but "caf\\xE8"
+fails, it's the sign; if everything fails, it's the order.
+""",
+]
+
+[[exercises]]
+name = "hash2"
+dir = "14_hash_tables"
+test = true
+sanitizers = true
+hints = [
+  """
+Linear probing has one word of truth: NEXT. After the last slot, the
+next one is slot 0 — probes wrap. And probing is not just for
+insertion: lookup must walk the same chain the insert walked.
+""",
+  """
+Walk offsets, not raw indexes:
+  for (n = 0; n < TABLE_CAPACITY; n++) {
+      Entry *e = &t->entries[(start + n) % TABLE_CAPACITY];
+      ...
+  }
+The modulo is the wraparound.
+""",
+  """
+get() mirrors put(): probe from the home slot; an UNUSED slot ends
+the chain (return -1), a key match returns the value, anything else
+keeps probing. The "size"/"time" and "port"/"path"/"name" tests are
+collision clusters computed offline — they exercise exactly these
+two paths.
+""",
+]
+
+[[exercises]]
+name = "hash3"
+dir = "14_hash_tables"
+test = true
+sanitizers = true
+hints = [
+  """
+Deleting by clearing to EMPTY cuts the probe chain: lookups stop at
+empty slots, so every key that probed PAST the deleted one becomes
+unreachable. The slot needs a third state that says "someone lived
+here": the tombstone.
+""",
+  """
+Rules per state — get(): EMPTY ends the chain, TOMBSTONE is walked
+through, USED is compared. delete(): mark SLOT_TOMBSTONE, not
+SLOT_EMPTY.
+""",
+  """
+put() must REUSE tombstones or ghosts eat the table (that's what
+test_ghosts_do_not_fill_the_table checks): remember the first
+tombstone passed while probing; if the chain ends without finding
+the key, insert there instead of in a fresh slot.
+""",
+]
+
+[[exercises]]
+name = "hash4"
+dir = "14_hash_tables"
+test = true
+sanitizers = true
+hints = [
+  """
+Home slots are hash % capacity. Change the capacity and almost every
+home MOVES: "size" lives at slot 4 of 8 but slot 12 of 16. A byte
+copy preserves the old layout in a world with new geometry.
+""",
+  """
+Growth = re-insert: for each old entry, probe the NEW array from
+hash % new_cap and place it in the first free slot. (No tombstones
+here: this table has no delete, so a plain probe suffices.)
+""",
+  """
+Two more contract points: free the OLD array once the new one is in
+place (the demo grows once — the leak sanitizer counts generations),
+and if the new allocation fails return -1 with the table untouched —
+cmetal_fail_next_alloc in the tests forces exactly that.
+""",
+]
+
+[[exercises]]
+name = "hash5"
+dir = "14_hash_tables"
+test = true
+sanitizers = true
+hints = [
+  """
+Interning is an identity contract: equal contents -> the SAME
+pointer, forever. That requires two things this pool skips: looking
+up before inserting, and OWNING a private copy of the string.
+""",
+  """
+Lookup first:
+  for each item: if strcmp(item, s) == 0 return item;
+Only when absent does the pool allocate — which also means a failed
+allocation can only happen for NEW strings (the tests rely on that:
+re-interning an existing string succeeds even when allocation is
+armed to fail).
+""",
+  """
+Own the copy: allocate len+1 with CMETAL_MALLOC, memcpy, store the
+copy — never the caller's pointer (their buffer will be reused; the
+demo does it on purpose). On allocation failure return NULL with the
+pool untouched.
+""",
+]

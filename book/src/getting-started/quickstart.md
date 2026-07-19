@@ -76,5 +76,5 @@ The full command surface is in [The CLI](../guides/cli.md).
 
 - [Watch mode: the core loop](../guides/watch-mode.md) — how save-driven
   verification actually works.
-- [The curriculum](../reference/curriculum.md) — the 42 exercises and what each
+- [The curriculum](../reference/curriculum.md) — the 47 exercises and what each
   one teaches.
