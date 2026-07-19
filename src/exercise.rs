@@ -1,8 +1,16 @@
 use crate::compiler::Compiler;
 use crate::info_file::ExerciseInfo;
 use anyhow::Result;
+use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
+
+/// Kill a compiled exercise after this long. Learner code loops
+/// forever all the time; watch mode must survive it. Kept in sync
+/// with RUN_TIMEOUT in scripts/check_exercises.py (a unit test in
+/// compiler.rs enforces the match).
+pub(crate) const RUN_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct Exercise {
     pub info: ExerciseInfo,
@@ -168,21 +176,140 @@ struct RunResult {
 }
 
 fn run_binary(path: &Path) -> Result<RunResult> {
-    let output = Command::new(path).output()?;
+    run_binary_with_timeout(path, RUN_TIMEOUT)
+}
+
+fn run_binary_with_timeout(path: &Path, timeout: Duration) -> Result<RunResult> {
+    let mut child = Command::new(path)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    // Drain the pipes on their own threads: a child that fills a pipe
+    // while we only poll try_wait() would block forever on write.
+    let stdout_reader = spawn_pipe_reader(child.stdout.take());
+    let stderr_reader = spawn_pipe_reader(child.stderr.take());
+
+    let deadline = Instant::now() + timeout;
+    let (status, timed_out) = loop {
+        if let Some(status) = child.try_wait()? {
+            break (Some(status), false);
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            break (None, true);
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    };
+
+    let stdout = stdout_reader.join().unwrap_or_default();
+    let stderr = stderr_reader.join().unwrap_or_default();
 
     let mut combined = String::new();
-    if !output.stdout.is_empty() {
-        combined.push_str(&String::from_utf8_lossy(&output.stdout));
+    if !stdout.is_empty() {
+        combined.push_str(&String::from_utf8_lossy(&stdout));
     }
-    if !output.stderr.is_empty() {
+    if !stderr.is_empty() {
         if !combined.is_empty() {
             combined.push('\n');
         }
-        combined.push_str(&String::from_utf8_lossy(&output.stderr));
+        combined.push_str(&String::from_utf8_lossy(&stderr));
+    }
+
+    if timed_out {
+        if !combined.is_empty() {
+            combined.push('\n');
+        }
+        combined.push_str(&format!(
+            "Timed out after {} seconds and was killed. \
+             Is there an infinite loop?",
+            timeout.as_secs()
+        ));
+        return Ok(RunResult {
+            success: false,
+            output: combined,
+        });
     }
 
     Ok(RunResult {
-        success: output.status.success(),
+        success: status.map(|s| s.success()).unwrap_or(false),
         output: combined,
     })
+}
+
+fn spawn_pipe_reader<R: Read + Send + 'static>(
+    pipe: Option<R>,
+) -> std::thread::JoinHandle<Vec<u8>> {
+    std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        if let Some(mut pipe) = pipe {
+            let _ = pipe.read_to_end(&mut buf);
+        }
+        buf
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Compile a C snippet with the system gcc into a temp binary.
+    fn compile_snippet(name: &str, code: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join("cmetal-run-binary-tests");
+        std::fs::create_dir_all(&dir).unwrap();
+        let src = dir.join(format!("{name}.c"));
+        let bin = dir.join(name);
+        std::fs::write(&src, code).unwrap();
+        let status = Command::new("gcc")
+            .arg(&src)
+            .arg("-o")
+            .arg(&bin)
+            .status()
+            .expect("gcc must be available for these tests");
+        assert!(status.success());
+        bin
+    }
+
+    #[test]
+    fn infinite_loop_is_killed_and_reported() {
+        let bin = compile_snippet(
+            "spin",
+            "int main(void) { volatile int x = 1; while (x) {} }",
+        );
+        let start = Instant::now();
+        let result = run_binary_with_timeout(&bin, Duration::from_secs(1)).unwrap();
+        assert!(!result.success);
+        assert!(result.output.contains("Timed out"));
+        // killed near the deadline, not at some multiple of it
+        assert!(start.elapsed() < Duration::from_secs(5));
+    }
+
+    #[test]
+    fn normal_exit_and_output_are_captured() {
+        let bin = compile_snippet(
+            "hello",
+            "#include <stdio.h>\nint main(void) { puts(\"hi\"); return 0; }",
+        );
+        let result = run_binary(&bin).unwrap();
+        assert!(result.success);
+        assert!(result.output.contains("hi"));
+    }
+
+    #[test]
+    fn large_output_does_not_deadlock() {
+        // More than any pipe buffer: without dedicated reader threads
+        // the child blocks on write and the timeout kills a healthy
+        // program.
+        let bin = compile_snippet(
+            "chatty",
+            "#include <stdio.h>\nint main(void) {\n\
+             for (int i = 0; i < 40000; i++) printf(\"0123456789abcdef\\n\");\n\
+             return 0; }",
+        );
+        let result = run_binary(&bin).unwrap();
+        assert!(result.success);
+        assert!(result.output.len() > 500_000);
+    }
 }

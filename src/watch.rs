@@ -16,6 +16,26 @@ enum WatchEvent {
     Quit,
 }
 
+/// Restores the terminal no matter how run_watch exits: every `?`
+/// between raw-mode entry and the end of the loop would otherwise
+/// leave the user's shell in raw mode inside the alternate screen.
+struct TerminalGuard;
+
+impl TerminalGuard {
+    fn enter() -> Result<Self> {
+        crossterm::execute!(io::stdout(), EnterAlternateScreen)?;
+        crossterm::terminal::enable_raw_mode()?;
+        Ok(Self)
+    }
+}
+
+impl Drop for TerminalGuard {
+    fn drop(&mut self) {
+        let _ = crossterm::terminal::disable_raw_mode();
+        let _ = crossterm::execute!(io::stdout(), LeaveAlternateScreen);
+    }
+}
+
 /// Get the mtime of the current exercise file, if available.
 fn current_exercise_mtime(state: &AppState) -> Option<SystemTime> {
     state
@@ -83,9 +103,9 @@ pub fn run_watch(
         crossterm::terminal::disable_raw_mode()?;
     }
 
-    // Enter alternate screen and enable raw mode
-    crossterm::execute!(io::stdout(), EnterAlternateScreen)?;
-    crossterm::terminal::enable_raw_mode()?;
+    // Enter alternate screen and enable raw mode; the guard restores
+    // both on every exit path, early error returns included.
+    let _guard = TerminalGuard::enter()?;
 
     // Initial run
     print_watch_header(state, compiler);
@@ -241,8 +261,7 @@ pub fn run_watch(
         }
     }
 
-    crossterm::terminal::disable_raw_mode()?;
-    crossterm::execute!(io::stdout(), LeaveAlternateScreen)?;
+    drop(_guard); // restore the terminal before anything else prints
     state.save()?;
     Ok(())
 }
