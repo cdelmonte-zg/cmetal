@@ -82,6 +82,16 @@ code with a `_Static_assert` (see `ub3`, `structs1`, `bitwise1`,
 `strings3`) and phrase comments so that what the C standard guarantees
 and what the target ABI provides stay distinguishable.
 
+### Fallible allocations
+
+If an exercise's contract includes allocation failure ("returns -1 and
+leaves the object untouched"), route its allocations through
+`CLINGS_MALLOC` / `CLINGS_REALLOC` from `include/clings_alloc.h`
+instead of calling malloc/realloc directly. In normal builds they are
+plain malloc/realloc; in TEST builds a test can arm the next allocation
+to fail with `clings_fail_next_alloc()` and assert the failure branch
+deterministically (see `memory2`, `structs2`, `function_pointers2`).
+
 ### The exercise invariant
 
 Every exercise must **fail** verification as shipped, and every solution

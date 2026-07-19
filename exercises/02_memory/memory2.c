@@ -11,6 +11,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "clings_alloc.h"
 
 typedef struct {
     int *items;
@@ -47,7 +48,7 @@ void dynarray_push(DynArray *da, int value) {
         // we then write through the NULL pointer anyway.
         // Use a temporary pointer, and return -1 without touching the
         // array if the allocation failed.
-        da->items = realloc(da->items, sizeof(int) * (size_t)new_cap);
+        da->items = CLINGS_REALLOC(da->items, sizeof(int) * (size_t)new_cap);
         da->capacity = new_cap;
     }
     da->items[da->count] = value;
@@ -140,16 +141,30 @@ TEST(test_get_out_of_bounds) {
     dynarray_destroy(da);
 }
 
-/* Note: the failure branch of the contract (realloc returning NULL,
- * push returning -1 with the array untouched) is NOT exercised by
- * these tests — forcing an allocation failure deterministically would
- * need an injectable allocator. The contract still requires it. */
+TEST(test_push_failure_leaves_array_untouched) {
+    DynArray *da = dynarray_create(2);
+    ASSERT_EQ(dynarray_push(da, 1), 0);
+    ASSERT_EQ(dynarray_push(da, 2), 0);
+    int *items_before = da->items;
+    clings_fail_next_alloc();          /* the growth realloc will fail */
+    ASSERT_EQ(dynarray_push(da, 3), -1);
+    ASSERT_EQ(da->count, 2);
+    ASSERT_EQ(da->capacity, 2);
+    ASSERT(da->items == items_before);
+    ASSERT_EQ(dynarray_get(da, 0), 1);
+    ASSERT_EQ(dynarray_get(da, 1), 2);
+    /* the array must still work after the failed push */
+    ASSERT_EQ(dynarray_push(da, 3), 0);
+    ASSERT_EQ(dynarray_get(da, 2), 3);
+    dynarray_destroy(da);
+}
 
 int main(void) {
     RUN_TEST(test_create);
     RUN_TEST(test_push_and_get);
     RUN_TEST(test_grow_beyond_capacity);
     RUN_TEST(test_get_out_of_bounds);
+    RUN_TEST(test_push_failure_leaves_array_untouched);
     TEST_REPORT();
 }
 #endif

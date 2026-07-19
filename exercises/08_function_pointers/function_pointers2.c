@@ -8,9 +8,10 @@
 //    BYTES, so the base must be cast to char* / unsigned char*.
 // 2. The swap buffer is a fixed unsigned char tmp[64]. A sort that
 //    claims to handle any element size must size the buffer from
-//    `size` (allocate it with malloc) — for bigger elements a fixed
-//    buffer silently overflows. big_record_t below is bigger than 64
-//    bytes for exactly this reason.
+//    `size`: allocate it with CLINGS_MALLOC (an alias of malloc that
+//    the tests can force to fail — see clings_alloc.h). For bigger
+//    elements a fixed buffer silently overflows; big_record_t below is
+//    bigger than 64 bytes for exactly this reason.
 // 3. The contract: allocation can fail, so bubble_sort must return
 //    int — 0 on success, -1 if the buffer allocation fails (leaving
 //    the array untouched). The demo and the tests below are already
@@ -20,6 +21,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "clings_alloc.h"
 #include <string.h>
 #include <stddef.h>
 
@@ -148,10 +150,20 @@ TEST(test_sort_large_elements) {
     ASSERT_STR_EQ(recs[3].label, "delta");
 }
 
-/* Note: the allocation-failure branch of the contract (bubble_sort
- * returning -1 with the array untouched) is NOT exercised by these
- * tests — forcing malloc to fail deterministically would need an
- * injectable allocator. The contract still requires it. */
+TEST(test_sort_reports_allocation_failure) {
+    int a[] = {3, 1, 2};
+    clings_fail_next_alloc();          /* the swap-buffer malloc fails */
+    ASSERT_EQ(bubble_sort(a, 3, sizeof(int), cmp_int_asc), -1);
+    /* array untouched on failure */
+    ASSERT_EQ(a[0], 3);
+    ASSERT_EQ(a[1], 1);
+    ASSERT_EQ(a[2], 2);
+    /* and a later sort succeeds */
+    ASSERT_EQ(bubble_sort(a, 3, sizeof(int), cmp_int_asc), 0);
+    ASSERT_EQ(a[0], 1);
+    ASSERT_EQ(a[1], 2);
+    ASSERT_EQ(a[2], 3);
+}
 
 int main(void) {
     RUN_TEST(test_sort_ascending);
@@ -159,6 +171,7 @@ int main(void) {
     RUN_TEST(test_already_sorted);
     RUN_TEST(test_single_element);
     RUN_TEST(test_sort_large_elements);
+    RUN_TEST(test_sort_reports_allocation_failure);
     TEST_REPORT();
 }
 #endif
