@@ -1,6 +1,6 @@
 # The curriculum
 
-cmetal ships **50 exercises across 16 topics**, ordered roughly from warm-up to
+cmetal ships **53 exercises across 17 topics**, ordered roughly from warm-up to
 the parts of C that bite in code review. Each is a real bug — the kind found in
 production C — never a fill-in-the-blanks template.
 
@@ -22,6 +22,7 @@ production C — never a fill-in-the-blanks template.
 | 13 | Tagged Unions         | 4         | Tag discipline, exhaustive dispatch, ownership, header-first polymorphism |
 | 14 | Hash Tables           | 5         | FNV-1a, probing, tombstones, rehash on growth, interning |
 | 15 | Arenas                | 3         | Bump allocation, alignment, chained growth, escape discipline |
+| 16 | Garbage Collection    | 3         | Mark-sweep: reachability, cycles, sweep discipline, finalization |
 
 ## How the topics build
 
