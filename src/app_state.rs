@@ -99,6 +99,17 @@ impl AppState {
         self.done.insert(name.to_string());
     }
 
+    pub fn mark_pending(&mut self, name: &str) {
+        self.done.remove(name);
+    }
+
+    /// Records a verified completion and persists it immediately —
+    /// marking without saving is how completions get lost.
+    pub fn complete(&mut self, name: &str) -> Result<()> {
+        self.mark_done(name);
+        self.save()
+    }
+
     pub fn prev(&mut self) -> bool {
         if self.current_index > 0 {
             self.current_index -= 1;

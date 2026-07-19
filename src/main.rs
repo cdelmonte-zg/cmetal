@@ -77,6 +77,47 @@ enum Commands {
 /// course, so a workspace can be materialized without the git clone.
 static CURRICULUM_TGZ: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/curriculum.tar.gz"));
 
+/// Extracts the embedded curriculum archive into `dest`.
+fn unpack_curriculum(dest: &Path) -> Result<()> {
+    let decoder = flate2::read::GzDecoder::new(CURRICULUM_TGZ);
+    tar::Archive::new(decoder)
+        .unpack(dest)
+        .context("Failed to extract the embedded curriculum")
+}
+
+/// Stamps `.clings/manifest.json` with this binary's curriculum
+/// version. The manifest is what `clings update` reads to decide
+/// whether (and in which direction) an update applies.
+fn write_manifest(meta_dir: &Path) -> Result<()> {
+    std::fs::create_dir_all(meta_dir)?;
+    std::fs::write(
+        meta_dir.join("manifest.json"),
+        format!(
+            "{{\n  \"curriculum_version\": \"{}\",\n  \"format_version\": 1\n}}\n",
+            env!("CARGO_PKG_VERSION")
+        ),
+    )?;
+    Ok(())
+}
+
+/// Extracts the string value of `"key": ...` from the (very small,
+/// self-produced) manifest JSON without pulling in a JSON parser.
+fn manifest_field<'a>(content: &'a str, key: &str) -> Option<&'a str> {
+    let pat = format!("\"{key}\":");
+    let rest = content[content.find(&pat)? + pat.len()..].trim_start();
+    if let Some(stripped) = rest.strip_prefix('"') {
+        stripped.split('"').next()
+    } else {
+        rest.split(|c: char| c == ',' || c == '}' || c.is_whitespace())
+            .next()
+    }
+}
+
+fn semver_triple(v: &str) -> Option<(u64, u64, u64)> {
+    let mut it = v.split('.').map(|p| p.parse::<u64>().ok());
+    Some((it.next()??, it.next()??, it.next()??))
+}
+
 /// `clings init` extracts the embedded curriculum into a directory.
 /// The layout is exactly the repo layout the engine already understands
 /// (info.toml at the root), so a workspace and a git clone are
@@ -100,23 +141,17 @@ fn cmd_init(dir: Option<PathBuf>) -> Result<()> {
             .with_context(|| format!("Failed to create {}", target.display()))?;
     }
 
-    let decoder = flate2::read::GzDecoder::new(CURRICULUM_TGZ);
-    let mut archive = tar::Archive::new(decoder);
-    archive
-        .unpack(&target)
-        .context("Failed to extract the embedded curriculum")?;
-
-    // Record which curriculum this workspace was materialized from —
-    // a future `clings update` will use this to reconcile versions.
-    let meta_dir = target.join(".clings");
-    std::fs::create_dir_all(&meta_dir)?;
-    std::fs::write(
-        meta_dir.join("manifest.json"),
-        format!(
-            "{{\n  \"curriculum_version\": \"{}\",\n  \"format_version\": 1\n}}\n",
-            env!("CARGO_PKG_VERSION")
-        ),
-    )?;
+    // The guard above proved the target started empty, so on any
+    // failure we can remove it wholesale: a half-extracted workspace
+    // would otherwise trip the same guard on retry and be orphaned.
+    let result = unpack_curriculum(&target).and_then(|()| write_manifest(&target.join(".clings")));
+    if let Err(e) = result {
+        let _ = std::fs::remove_dir_all(&target);
+        return Err(e.context(format!(
+            "init failed; {} was removed so you can retry",
+            target.display()
+        )));
+    }
 
     println!();
     term::print_success(&format!("Workspace created in {}", target.display()));
@@ -131,16 +166,104 @@ fn cmd_init(dir: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-/// Collects the relative paths of all files under `dir` (recursively).
-fn relative_files(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
-    for entry in std::fs::read_dir(dir)? {
-        let path = entry?.path();
-        if path.is_dir() {
-            relative_files(root, &path, out)?;
-        } else {
-            out.push(path.strip_prefix(root).unwrap().to_path_buf());
+/// A previous `clings update` interrupted mid-swap leaves complete old
+/// parts in `.clings/backup` (each part moves with a single rename, so
+/// a part is never half-copied). Restore every part the workspace is
+/// missing; where both exist the workspace's version is the complete
+/// new part, so it wins. Only then is the backup safe to drop.
+fn recover_interrupted_update(base_dir: &Path, backup: &Path) -> Result<()> {
+    if !backup.exists() {
+        return Ok(());
+    }
+    term::print_warning("Found leftovers of an interrupted update — recovering.");
+    for entry in std::fs::read_dir(backup)? {
+        let entry = entry?.path();
+        let name = entry.file_name().expect("backup entries have names");
+        let dest = base_dir.join(name);
+        if !dest.exists() {
+            std::fs::rename(&entry, &dest)
+                .with_context(|| format!("Failed to restore {} from backup", dest.display()))?;
         }
     }
+    std::fs::remove_dir_all(backup)?;
+    Ok(())
+}
+
+/// Best-effort rollback helpers: a failed rename here leaves the part
+/// in backup/staging, where the recovery pass of the next update finds
+/// it. Never panics, never masks the original error.
+fn rollback_renames(pairs: &[(PathBuf, PathBuf)]) {
+    for (from, to) in pairs {
+        let _ = std::fs::rename(from, to);
+    }
+}
+
+fn remove_if_empty(dir: &Path) {
+    if let Ok(mut entries) = std::fs::read_dir(dir) {
+        if entries.next().is_none() {
+            let _ = std::fs::remove_dir(dir);
+        }
+    }
+}
+
+/// Replaces the pristine curriculum with the staged one in two phases
+/// of atomic per-part renames: every old part moves to `backup/`, then
+/// every staged part moves into place. On failure both phases are
+/// rolled back (best effort); whatever a failed rollback leaves behind
+/// sits in `backup/` and is picked up by `recover_interrupted_update`
+/// on the next run. The part list comes from the staged archive itself,
+/// so a directory added to the curriculum later can never be silently
+/// dropped by an older hardcoded list.
+fn swap_curriculum(base_dir: &Path, staging: &Path, backup: &Path) -> Result<()> {
+    let mut parts: Vec<std::ffi::OsString> = std::fs::read_dir(staging)?
+        .map(|e| e.map(|e| e.file_name()))
+        .collect::<std::io::Result<_>>()?;
+    parts.sort();
+
+    std::fs::create_dir_all(backup)?;
+
+    // Phase A: old parts out of the way.
+    let mut undo_moves = Vec::new();
+    for part in &parts {
+        let old = base_dir.join(part);
+        if old.exists() {
+            if let Err(e) = std::fs::rename(&old, backup.join(part)) {
+                rollback_renames(&undo_moves);
+                remove_if_empty(backup);
+                return Err(e).context(format!("Failed to back up {}", part.to_string_lossy()));
+            }
+            undo_moves.push((backup.join(part), old));
+        }
+    }
+
+    // Phase B: staged parts into place.
+    let mut undo_installs = Vec::new();
+    for part in &parts {
+        // Test seam: CLINGS_TEST_FAIL_INSTALL=<part> simulates a rename
+        // failure mid-swap (same philosophy as clings_alloc.h).
+        let install = if std::env::var_os("CLINGS_TEST_FAIL_INSTALL")
+            .is_some_and(|v| v.as_os_str() == part.as_os_str())
+        {
+            Err(std::io::Error::other("injected failure (test seam)"))
+        } else {
+            std::fs::rename(staging.join(part), base_dir.join(part))
+        };
+        if let Err(e) = install {
+            rollback_renames(&undo_installs);
+            rollback_renames(&undo_moves);
+            remove_if_empty(backup);
+            return Err(e).context(format!(
+                "Failed to install {} — the update was rolled back; if \
+                 anything is left in {}, the next `clings update` recovers it",
+                part.to_string_lossy(),
+                backup.display()
+            ));
+        }
+        undo_installs.push((base_dir.join(part), staging.join(part)));
+    }
+
+    // Success: the backup now only holds fully-replaced old parts.
+    std::fs::remove_dir_all(backup)?;
     Ok(())
 }
 
@@ -151,12 +274,13 @@ fn relative_files(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) -> Result<()>
 /// Rules:
 ///   - my_exercises/ is never overwritten with one exception: a working
 ///     copy the learner never touched (identical to the OLD pristine
-///     file) is refreshed to the new pristine version;
+///     file) is refreshed to the new pristine version — and only AFTER
+///     the curriculum swap has succeeded;
 ///   - working copies with edits are kept; if their exercise changed
 ///     upstream, that is reported (see `clings diff` / `clings reset`);
-///   - the pristine curriculum (exercises/, solutions/, include/,
-///     info.toml) is replaced via a staging directory and renames, so a
-///     failed update does not leave a half-written curriculum.
+///   - the pristine curriculum is replaced by `swap_curriculum` (staged,
+///     rolled back on failure), and leftovers of a previously
+///     interrupted update are recovered before anything else happens.
 fn cmd_update(base_dir: &Path) -> Result<()> {
     let meta_dir = base_dir.join(".clings");
     if !meta_dir.join("manifest.json").exists() {
@@ -167,38 +291,64 @@ fn cmd_update(base_dir: &Path) -> Result<()> {
         );
     }
 
-    // 1. Stage the embedded curriculum.
+    // 0. If a previous update was interrupted, make the workspace whole
+    //    before touching anything else. Never delete a backup blindly:
+    //    it may hold the only copy of parts of the old curriculum.
+    let backup = meta_dir.join("backup");
+    recover_interrupted_update(base_dir, &backup)?;
+
+    // 1. Version guard: the manifest is the source of truth for what
+    //    the workspace holds. Never downgrade, never touch a format we
+    //    don't understand, skip the work when already current.
+    let manifest = std::fs::read_to_string(meta_dir.join("manifest.json"))?;
+    let format = manifest_field(&manifest, "format_version").and_then(|v| v.parse::<u32>().ok());
+    if format != Some(1) {
+        anyhow::bail!(
+            "This workspace uses manifest format {} — this clings only \
+             understands format 1. Upgrade clings and retry.",
+            format.map_or_else(|| "?".to_string(), |f| f.to_string())
+        );
+    }
+    let bin_version = env!("CARGO_PKG_VERSION");
+    let ws_version = manifest_field(&manifest, "curriculum_version").unwrap_or("0.0.0");
+    match (semver_triple(ws_version), semver_triple(bin_version)) {
+        (Some(ws), Some(bin)) if ws > bin => anyhow::bail!(
+            "Workspace curriculum {ws_version} is NEWER than this binary's \
+             ({bin_version}) — updating would downgrade it. Upgrade clings instead."
+        ),
+        (Some(ws), Some(bin)) if ws == bin => {
+            println!();
+            term::print_info(&format!(
+                "Workspace already on curriculum {bin_version}; nothing to update."
+            ));
+            println!();
+            return Ok(());
+        }
+        _ => {}
+    }
+
+    // 2. Stage the embedded curriculum.
     let staging = meta_dir.join("staging");
     if staging.exists() {
         std::fs::remove_dir_all(&staging)?;
     }
     std::fs::create_dir_all(&staging)?;
-    let decoder = flate2::read::GzDecoder::new(CURRICULUM_TGZ);
-    tar::Archive::new(decoder)
-        .unpack(&staging)
-        .context("Failed to extract the embedded curriculum")?;
+    unpack_curriculum(&staging)?;
 
-    // 2. Reconcile working copies while the OLD pristine files are
-    //    still in place.
+    // 3. Reconciliation SCAN, no writes: decide what to do while the
+    //    old pristine files are still in place. The staged info.toml is
+    //    the authoritative exercise list, so reported names are the
+    //    canonical ones run/diff/reset accept.
+    let staged_info = InfoFile::parse(&staging.join("info.toml"))?;
     let mut new_exercises = Vec::new();
-    let mut refreshed = Vec::new();
     let mut kept = Vec::new();
-    let mut staged_exercise_files = Vec::new();
-    relative_files(
-        &staging,
-        &staging.join("exercises"),
-        &mut staged_exercise_files,
-    )?;
-    for rel in &staged_exercise_files {
-        let display_name = rel
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or_default()
-            .to_string();
-        let staged = staging.join(rel);
-        let old_pristine = base_dir.join(rel);
+    let mut pending_refresh: Vec<(PathBuf, Vec<u8>, String)> = Vec::new();
+    for ei in &staged_info.exercises {
+        let rel = Path::new("exercises").join(ei.rel_path());
+        let staged = staging.join(&rel);
+        let old_pristine = base_dir.join(&rel);
         if !old_pristine.exists() {
-            new_exercises.push(display_name);
+            new_exercises.push(ei.name.clone());
             continue; // appears in my_exercises/ on the next run
         }
         let new_bytes = std::fs::read(&staged)?;
@@ -206,54 +356,36 @@ fn cmd_update(base_dir: &Path) -> Result<()> {
         if new_bytes == old_bytes {
             continue; // unchanged upstream
         }
-        let my_copy = base_dir
-            .join("my_exercises")
-            .join(rel.strip_prefix("exercises").unwrap());
+        let my_copy = base_dir.join("my_exercises").join(ei.rel_path());
         if !my_copy.exists() {
             continue; // will be copied fresh on the next run
         }
         if std::fs::read(&my_copy)? == old_bytes {
-            // Never touched by the learner: safe to refresh.
-            std::fs::write(&my_copy, &new_bytes)?;
-            refreshed.push(display_name);
+            // Never touched by the learner: refresh after the swap.
+            pending_refresh.push((my_copy, new_bytes, ei.name.clone()));
         } else {
-            kept.push(display_name);
+            kept.push(ei.name.clone());
         }
     }
 
-    // 3. Swap the pristine curriculum: old parts move to a backup dir,
-    //    staged parts move into place. Renames within the workspace
-    //    keep this close to atomic; on failure the backup remains.
-    let backup = meta_dir.join("backup");
-    if backup.exists() {
-        std::fs::remove_dir_all(&backup)?;
+    // 4. Swap the pristine curriculum (staged, rolled back on failure).
+    swap_curriculum(base_dir, &staging, &backup)?;
+
+    // 5. With the new curriculum fully in place, refresh the untouched
+    //    working copies FIRST — this is the only remaining state the
+    //    learner could lose, so shrink the window before any cleanup.
+    //    (If interrupted exactly here, the copies stay on the old text
+    //    and the next update reports them as edited — degraded but
+    //    honest, and `clings reset <name>` recovers.)
+    let mut refreshed = Vec::new();
+    for (my_copy, new_bytes, display_name) in pending_refresh {
+        std::fs::write(&my_copy, &new_bytes)?;
+        refreshed.push(display_name);
     }
-    std::fs::create_dir_all(&backup)?;
-    for part in ["exercises", "solutions", "include", "info.toml"] {
-        let old = base_dir.join(part);
-        if old.exists() {
-            std::fs::rename(&old, backup.join(part))
-                .with_context(|| format!("Failed to back up {part}"))?;
-        }
-        std::fs::rename(staging.join(part), &old).with_context(|| {
-            format!(
-                "Failed to install new {part} — the previous curriculum \
-                 is preserved in {}",
-                backup.display()
-            )
-        })?;
-    }
-    std::fs::remove_dir_all(&backup)?;
     std::fs::remove_dir_all(&staging)?;
 
-    // 4. Stamp the manifest with this binary's curriculum version.
-    std::fs::write(
-        meta_dir.join("manifest.json"),
-        format!(
-            "{{\n  \"curriculum_version\": \"{}\",\n  \"format_version\": 1\n}}\n",
-            env!("CARGO_PKG_VERSION")
-        ),
-    )?;
+    // 6. Stamp the manifest with this binary's curriculum version.
+    write_manifest(&meta_dir)?;
 
     println!();
     term::print_success(&format!(
@@ -282,7 +414,7 @@ fn cmd_update(base_dir: &Path) -> Result<()> {
         ));
     }
     if new_exercises.is_empty() && refreshed.is_empty() && kept.is_empty() {
-        term::print_info("Curriculum already up to date; nothing to reconcile.");
+        term::print_info("Curriculum files updated; no working-copy changes to reconcile.");
     }
     println!();
     Ok(())
@@ -299,6 +431,24 @@ fn resolve_base_dir() -> Result<PathBuf> {
         }
     }
     anyhow::bail!("Could not find info.toml. Are you in a clings project directory?")
+}
+
+/// Like `resolve_base_dir`, but for `clings update`: a workspace whose
+/// previous update was interrupted mid-swap may transiently have NO
+/// info.toml (it sits in .clings/backup), so the workspace metadata
+/// directory is accepted as a marker too — otherwise the recovery pass
+/// could never run for exactly the crash it exists to repair.
+fn resolve_workspace_dir() -> Result<PathBuf> {
+    let mut dir = std::env::current_dir()?;
+    loop {
+        if dir.join("info.toml").exists() || dir.join(".clings").join("manifest.json").exists() {
+            return Ok(dir);
+        }
+        if !dir.pop() {
+            break;
+        }
+    }
+    anyhow::bail!("Could not find a clings workspace here (no info.toml or .clings/manifest.json).")
 }
 
 fn load_exercises(
@@ -329,9 +479,9 @@ fn prepare_workspace(info: &InfoFile, base_dir: &Path) -> Result<PathBuf> {
     let pristine_dir = base_dir.join("exercises");
     let work_dir = base_dir.join("my_exercises");
     for ei in &info.exercises {
-        let file = format!("{}.c", ei.name);
-        let src = pristine_dir.join(&ei.dir).join(&file);
-        let dst = work_dir.join(&ei.dir).join(&file);
+        let rel = ei.rel_path();
+        let src = pristine_dir.join(&rel);
+        let dst = work_dir.join(&rel);
         if src.exists() && !dst.exists() {
             std::fs::create_dir_all(dst.parent().unwrap())?;
             std::fs::copy(&src, &dst)
@@ -341,45 +491,145 @@ fn prepare_workspace(info: &InfoFile, base_dir: &Path) -> Result<PathBuf> {
     Ok(work_dir)
 }
 
-/// Overwrite every workspace file with its pristine version from `exercises/`.
-fn restore_workspace(info: &InfoFile, base_dir: &Path, work_dir: &Path) -> Result<()> {
-    let pristine_dir = base_dir.join("exercises");
-    for ei in &info.exercises {
-        let file = format!("{}.c", ei.name);
-        let src = pristine_dir.join(&ei.dir).join(&file);
-        let dst = work_dir.join(&ei.dir).join(&file);
-        if src.exists() {
-            std::fs::create_dir_all(dst.parent().unwrap())?;
-            std::fs::copy(&src, &dst)?;
-        }
+/// Copies one exercise's pristine file over its working copy. Missing
+/// pristine files are tolerated (same semantics as a full restore).
+fn restore_exercise(base_dir: &Path, ei: &info_file::ExerciseInfo) -> Result<()> {
+    let rel = ei.rel_path();
+    let src = base_dir.join("exercises").join(&rel);
+    let dst = base_dir.join("my_exercises").join(&rel);
+    if src.exists() {
+        std::fs::create_dir_all(dst.parent().unwrap())?;
+        std::fs::copy(&src, &dst)
+            .with_context(|| format!("Failed to restore {}", rel.display()))?;
     }
+    Ok(())
+}
+
+/// Overwrite every workspace file with its pristine version from `exercises/`.
+fn restore_workspace(info: &InfoFile, base_dir: &Path) -> Result<()> {
+    for ei in &info.exercises {
+        restore_exercise(base_dir, ei)?;
+    }
+    Ok(())
+}
+
+/// Looks up an exercise's metadata by name.
+fn find_exercise_info<'a>(info: &'a InfoFile, name: &str) -> Result<&'a info_file::ExerciseInfo> {
+    info.exercises
+        .iter()
+        .find(|ei| ei.name == name)
+        .with_context(|| format!("Exercise '{name}' not found"))
+}
+
+/// Writes to stdout, tolerating ONLY a closed pipe (`clings diff x |
+/// head`); any other write failure is a real error and propagates.
+fn write_stdout(text: &str) -> Result<()> {
+    use std::io::Write;
+    match std::io::stdout().write_all(text.as_bytes()) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+        Err(e) => Err(e).context("Failed to write to stdout"),
+    }
+}
+
+/// `clings diff <name>`: pristine exercise vs the learner's working
+/// copy. Pure file operation — needs no compiler, no state.
+fn cmd_diff(base_dir: &Path, name: &str) -> Result<()> {
+    let info = InfoFile::parse(&base_dir.join("info.toml"))?;
+    let ei = find_exercise_info(&info, name)?;
+    let rel = ei.rel_path();
+    let pristine = std::fs::read_to_string(base_dir.join("exercises").join(&rel))
+        .with_context(|| format!("Failed to read pristine {}", rel.display()))?;
+    let my_path = base_dir.join("my_exercises").join(&rel);
+    if !my_path.exists() {
+        write_stdout(&format!(
+            "\n{name}: no working copy yet — it is created on the next `clings` run.\n\n"
+        ))?;
+        return Ok(());
+    }
+    let mine = std::fs::read_to_string(&my_path)
+        .with_context(|| format!("Failed to read your copy of {}", rel.display()))?;
+    if pristine == mine {
+        write_stdout(&format!(
+            "\n{name}: your copy is identical to the pristine exercise.\n\n"
+        ))?;
+    } else {
+        let diff = similar::TextDiff::from_lines(&pristine, &mine);
+        let text = format!(
+            "\n{}\n",
+            diff.unified_diff().context_radius(3).header(
+                &format!("exercises/{} (pristine)", rel.display()),
+                &format!("my_exercises/{} (yours)", rel.display()),
+            )
+        );
+        write_stdout(&text)?;
+    }
+    Ok(())
+}
+
+/// `clings reset <name>`: restore one exercise's working copy to the
+/// pristine version and mark it pending again, leaving every other
+/// exercise's progress untouched. Needs no compiler.
+fn cmd_reset_one(base_dir: &Path, name: &str, compiler_kind: CompilerKind) -> Result<()> {
+    let info = InfoFile::parse(&base_dir.join("info.toml"))?;
+    let ei = find_exercise_info(&info, name)?;
+    restore_exercise(base_dir, ei)?;
+
+    // Un-done it, or watch mode would never offer it again and the
+    // progress count would keep claiming it solved.
+    let work_dir = base_dir.join("my_exercises");
+    let exercises = load_exercises(&info, base_dir, &work_dir, compiler_kind);
+    let mut state = AppState::new(exercises, base_dir)?;
+    state.mark_pending(name);
+    state.save()?;
+
+    println!();
+    term::print_success(&format!(
+        "{name} restored to the pristine exercise and marked pending again \
+         (other progress kept)."
+    ));
+    println!();
     Ok(())
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // `init` creates a workspace, so it must work OUTSIDE any existing
-    // project: handle it before base-dir resolution.
-    if let Some(Commands::Init { dir }) = &cli.command {
-        return cmd_init(dir.clone());
-    }
-
-    let base_dir = resolve_base_dir()
-        .context("Could not find clings project. Make sure you're inside the clings directory.")?;
-
-    // `update` only reconciles files: no compiler, no exercise state.
-    if let Some(Commands::Update) = &cli.command {
-        return cmd_update(&base_dir);
-    }
-
-    let info = InfoFile::parse(&base_dir.join("info.toml"))?;
-
     let compiler_kind = match cli.compiler.to_lowercase().as_str() {
         "gcc" => CompilerKind::Gcc,
         "clang" => CompilerKind::Clang,
         other => anyhow::bail!("Unknown compiler: {other}. Use 'gcc' or 'clang'."),
     };
+
+    // File-only commands are dispatched before the engine spins up:
+    // they must not require a C compiler, a populated workspace — or,
+    // for init, any project at all. Their match arms below are
+    // unreachable by construction.
+    match &cli.command {
+        // Creates a workspace: works OUTSIDE any existing project.
+        Some(Commands::Init { dir }) => return cmd_init(dir.clone()),
+        // Reconciles files; must run even in a workspace whose
+        // info.toml sits in .clings/backup after an interrupted update,
+        // which is why it resolves the workspace by its own marker.
+        Some(Commands::Update) => {
+            let base_dir = resolve_workspace_dir()?;
+            return cmd_update(&base_dir);
+        }
+        Some(Commands::Diff { name }) => {
+            let base_dir = resolve_base_dir()?;
+            return cmd_diff(&base_dir, name);
+        }
+        Some(Commands::Reset { name: Some(name) }) => {
+            let base_dir = resolve_base_dir()?;
+            return cmd_reset_one(&base_dir, name, compiler_kind);
+        }
+        _ => {}
+    }
+
+    let base_dir = resolve_base_dir()
+        .context("Could not find clings project. Make sure you're inside the clings directory.")?;
+
+    let info = InfoFile::parse(&base_dir.join("info.toml"))?;
 
     let compiler = Compiler::new(compiler_kind, &base_dir)?;
     let work_dir = prepare_workspace(&info, &base_dir)?;
@@ -388,8 +638,13 @@ fn main() -> Result<()> {
     let mut state = AppState::new(exercises, &base_dir)?;
 
     match cli.command {
-        // Handled before base-dir resolution above.
-        Some(Commands::Init { .. }) => unreachable!("init is dispatched early"),
+        // Dispatched before engine setup; see the match at the top of main.
+        Some(Commands::Init { .. })
+        | Some(Commands::Update)
+        | Some(Commands::Diff { .. })
+        | Some(Commands::Reset { name: Some(_) }) => {
+            unreachable!("file-only commands are dispatched before engine setup")
+        }
         None => {
             // Default: watch mode
             let welcome = info.welcome_message.as_deref();
@@ -432,8 +687,7 @@ fn main() -> Result<()> {
                 if let Ok(path) = exercise.reveal_solution() {
                     term::print_info(&format!("Official solution revealed: {}", path.display()));
                 }
-                state.mark_done(&name);
-                state.save()?;
+                state.complete(&name)?;
             } else {
                 term::print_error(&format!(
                     "{} failed at stage: {}",
@@ -524,8 +778,7 @@ fn main() -> Result<()> {
             // like any other: persist it, or `clings list` keeps showing the
             // exercise as pending.
             if verified_now {
-                state.mark_done(&name);
-                state.save()?;
+                state.complete(&name)?;
             }
         }
         Some(Commands::List) => {
@@ -560,65 +813,12 @@ fn main() -> Result<()> {
             }
             println!();
         }
-        Some(Commands::Reset { name: Some(name) }) => {
-            let idx = state
-                .find_exercise(&name)
-                .context(format!("Exercise '{name}' not found"))?;
-            let exercise = &state.exercises[idx];
-            let rel = Path::new(&exercise.info.dir).join(format!("{}.c", exercise.info.name));
-            let src = base_dir.join("exercises").join(&rel);
-            let dst = work_dir.join(&rel);
-            std::fs::create_dir_all(dst.parent().unwrap())?;
-            std::fs::copy(&src, &dst)
-                .with_context(|| format!("Failed to restore {}", rel.display()))?;
-            println!();
-            term::print_success(&format!(
-                "{name} restored to the pristine exercise (progress kept)."
-            ));
-            println!();
-        }
         Some(Commands::Reset { name: None }) => {
             state.reset()?;
-            restore_workspace(&info, &base_dir, &work_dir)?;
+            restore_workspace(&info, &base_dir)?;
             println!();
             term::print_success("Progress reset. Workspace restored to pristine exercises!");
             println!();
-        }
-        // Handled before compiler setup above.
-        Some(Commands::Update) => unreachable!("update is dispatched early"),
-        Some(Commands::Diff { name }) => {
-            let idx = state
-                .find_exercise(&name)
-                .context(format!("Exercise '{name}' not found"))?;
-            let exercise = &state.exercises[idx];
-            let rel = Path::new(&exercise.info.dir).join(format!("{}.c", exercise.info.name));
-            let pristine = std::fs::read_to_string(base_dir.join("exercises").join(&rel))
-                .with_context(|| format!("Failed to read pristine {}", rel.display()))?;
-            let mine = std::fs::read_to_string(work_dir.join(&rel))
-                .with_context(|| format!("Failed to read your copy of {}", rel.display()))?;
-            println!();
-            if pristine == mine {
-                term::print_info(&format!(
-                    "{name}: your copy is identical to the pristine exercise."
-                ));
-            } else {
-                let diff = similar::TextDiff::from_lines(&pristine, &mine);
-                let text = format!(
-                    "{}",
-                    diff.unified_diff().context_radius(3).header(
-                        &format!("exercises/{} (pristine)", rel.display()),
-                        &format!("my_exercises/{} (yours)", rel.display()),
-                    )
-                );
-                // Tolerate a closed pipe (`clings diff x | head`):
-                // println! would panic on the write error.
-                use std::io::Write;
-                let _ = std::io::stdout().write_all(text.as_bytes());
-            }
-            {
-                use std::io::Write;
-                let _ = writeln!(std::io::stdout());
-            }
         }
         Some(Commands::Verify) => {
             println!();

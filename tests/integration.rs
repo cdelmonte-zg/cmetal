@@ -25,6 +25,15 @@ fn clings_bin() -> std::path::PathBuf {
     path
 }
 
+/// Overwrite a workspace manifest with a given curriculum version.
+fn stamp_manifest(ws: &Path, version: &str) {
+    std::fs::write(
+        ws.join(".clings/manifest.json"),
+        format!("{{\n  \"curriculum_version\": \"{version}\",\n  \"format_version\": 1\n}}\n"),
+    )
+    .unwrap();
+}
+
 /// Create a minimal clings project in a temp directory.
 fn setup_project(tmp: &Path, exercises: &[(&str, &str, &str)]) {
     // exercises: [(name, dir, c_code)]
@@ -533,6 +542,10 @@ fn cli_update_reconciles_workspace() {
         .unwrap();
     assert!(output.status.success());
 
+    // Pretend the workspace came from an older curriculum, or the
+    // version guard would short-circuit the update.
+    stamp_manifest(&ws, "0.0.1");
+
     let pristine_intro = ws.join("exercises/00_intro/intro1.c");
     let pristine_p1 = ws.join("exercises/01_pointers/pointers1.c");
     let embedded_intro = std::fs::read_to_string(&pristine_intro).unwrap();
@@ -604,6 +617,169 @@ fn cli_update_reconciles_workspace() {
 }
 
 #[test]
+fn cli_update_interrupted_swap_rolls_back() {
+    let tmp = TempDir::new().unwrap();
+    let ws = tmp.path().join("course");
+    let output = Command::new(clings_bin())
+        .arg("init")
+        .arg(&ws)
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    stamp_manifest(&ws, "0.0.1");
+
+    let pristine_intro = ws.join("exercises/00_intro/intro1.c");
+    let embedded_intro = std::fs::read_to_string(&pristine_intro).unwrap();
+    let old_intro = format!("{embedded_intro}\n// old curriculum\n");
+    std::fs::write(&pristine_intro, &old_intro).unwrap();
+    std::fs::create_dir_all(ws.join("my_exercises/00_intro")).unwrap();
+    std::fs::write(ws.join("my_exercises/00_intro/intro1.c"), &old_intro).unwrap();
+    std::fs::create_dir_all(ws.join("my_exercises/01_pointers")).unwrap();
+    std::fs::write(
+        ws.join("my_exercises/01_pointers/pointers1.c"),
+        "// my work\n",
+    )
+    .unwrap();
+
+    // Inject a failure halfway through phase B of the swap.
+    let output = Command::new(clings_bin())
+        .arg("update")
+        .env("CLINGS_TEST_FAIL_INSTALL", "include")
+        .current_dir(&ws)
+        .output()
+        .unwrap();
+    assert!(
+        !output.status.success(),
+        "injected failure must fail update"
+    );
+
+    // The workspace must be exactly as before the attempt.
+    assert_eq!(
+        std::fs::read_to_string(&pristine_intro).unwrap(),
+        old_intro,
+        "old pristine curriculum must be rolled back into place"
+    );
+    assert_eq!(
+        std::fs::read_to_string(ws.join("my_exercises/00_intro/intro1.c")).unwrap(),
+        old_intro,
+        "working copies must not be refreshed by a failed update"
+    );
+    assert_eq!(
+        std::fs::read_to_string(ws.join("my_exercises/01_pointers/pointers1.c")).unwrap(),
+        "// my work\n"
+    );
+    assert!(ws.join("info.toml").exists());
+    assert!(ws.join("include/clings_test.h").exists());
+    assert!(
+        !ws.join(".clings/backup").exists(),
+        "a fully rolled-back update must not leave a backup behind"
+    );
+
+    // A second update (no injection) must succeed and lose nothing.
+    let output = Command::new(clings_bin())
+        .arg("update")
+        .current_dir(&ws)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "retry after rollback failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        std::fs::read_to_string(&pristine_intro).unwrap(),
+        embedded_intro
+    );
+    assert_eq!(
+        std::fs::read_to_string(ws.join("my_exercises/00_intro/intro1.c")).unwrap(),
+        embedded_intro,
+        "untouched copy must be refreshed by the successful retry"
+    );
+    assert_eq!(
+        std::fs::read_to_string(ws.join("my_exercises/01_pointers/pointers1.c")).unwrap(),
+        "// my work\n"
+    );
+}
+
+#[test]
+fn cli_update_recovers_interrupted_backup() {
+    let tmp = TempDir::new().unwrap();
+    let ws = tmp.path().join("course");
+    let output = Command::new(clings_bin())
+        .arg("init")
+        .arg(&ws)
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    stamp_manifest(&ws, "0.0.1");
+
+    // Simulate a crash mid-swap: info.toml moved to backup, never
+    // replaced. resolve_base_dir would fail here — update must still
+    // find the workspace via .clings/manifest.json and recover.
+    std::fs::create_dir_all(ws.join(".clings/backup")).unwrap();
+    std::fs::rename(ws.join("info.toml"), ws.join(".clings/backup/info.toml")).unwrap();
+
+    let output = Command::new(clings_bin())
+        .arg("update")
+        .current_dir(&ws)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "update must recover an interrupted workspace: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(ws.join("info.toml").exists(), "info.toml must be restored");
+    assert!(
+        !ws.join(".clings/backup").exists(),
+        "backup must be consumed"
+    );
+}
+
+#[test]
+fn cli_update_version_guard() {
+    let tmp = TempDir::new().unwrap();
+    let ws = tmp.path().join("course");
+    let output = Command::new(clings_bin())
+        .arg("init")
+        .arg(&ws)
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    // Same version: a no-op that says so, without churning the tree.
+    let output = Command::new(clings_bin())
+        .arg("update")
+        .current_dir(&ws)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("nothing to update"),
+        "same-version update must be a no-op"
+    );
+
+    // Newer workspace than binary: refuse the downgrade.
+    stamp_manifest(&ws, "99.0.0");
+    let output = Command::new(clings_bin())
+        .arg("update")
+        .current_dir(&ws)
+        .output()
+        .unwrap();
+    assert!(
+        !output.status.success(),
+        "update must refuse to downgrade a newer workspace"
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("NEWER"),
+        "the refusal must explain the version conflict"
+    );
+}
+
+#[test]
 fn cli_diff_and_reset_single_exercise() {
     if !has_gcc() {
         eprintln!("skipping: gcc not available");
@@ -640,6 +816,14 @@ fn cli_diff_and_reset_single_exercise() {
         "diff must show the learner's changes, got:\n{stdout}"
     );
 
+    // Mark intro1 done first: reset <name> must un-done it, or watch
+    // mode would never offer the restored exercise again.
+    std::fs::write(
+        ws.join(".clings-state.txt"),
+        "DON'T EDIT THIS FILE!\n\nintro1\n\nintro1\n",
+    )
+    .unwrap();
+
     let output = Command::new(clings_bin())
         .args(["reset", "intro1"])
         .current_dir(&ws)
@@ -649,6 +833,16 @@ fn cli_diff_and_reset_single_exercise() {
         output.status.success(),
         "reset <name> failed: {}",
         String::from_utf8_lossy(&output.stderr)
+    );
+    let state = std::fs::read_to_string(ws.join(".clings-state.txt")).unwrap();
+    let done_entries: Vec<&str> = state
+        .lines()
+        .skip(3) // header, blank, current name
+        .filter(|l| !l.trim().is_empty())
+        .collect();
+    assert!(
+        !done_entries.contains(&"intro1"),
+        "reset <name> must mark the exercise pending again, state:\n{state}"
     );
     assert_eq!(
         std::fs::read_to_string(ws.join("my_exercises/00_intro/intro1.c")).unwrap(),

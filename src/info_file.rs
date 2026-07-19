@@ -44,6 +44,15 @@ pub struct ExerciseInfo {
 }
 
 impl ExerciseInfo {
+    /// Path of this exercise's source file relative to the exercises
+    /// root — the single place the `<dir>/<name>.c` layout convention
+    /// lives (my_exercises/ and solutions/ mirror it).
+    pub fn rel_path(&self) -> std::path::PathBuf {
+        Path::new(&self.dir).join(format!("{}.c", self.name))
+    }
+}
+
+impl ExerciseInfo {
     /// Whether this exercise is meant to run with the given compiler.
     pub fn supports_compiler(&self, compiler: &str) -> bool {
         match &self.compilers {
