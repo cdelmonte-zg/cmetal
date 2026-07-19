@@ -95,6 +95,9 @@ static int table_grow(Table *t) {
 // Inserts or updates. Returns 0, or -1 if allocation failed during
 // growth (the table stays fully usable).
 int table_put(Table *t, const char *key, int value) {
+    // BUG: growth is decided before knowing whether this call is an
+    // UPDATE — updating an existing key needs no new slot, so it must
+    // neither grow the table nor fail on allocation.
     if ((t->count + 1) * 4 > t->capacity * 3) {
         if (table_grow(t) != 0) {
             return -1;
@@ -191,6 +194,25 @@ TEST(test_growth_rehashes) {
     table_free(&t);
 }
 
+TEST(test_update_does_not_require_growth) {
+    // Updating at high load is not an insertion: no growth, no way to
+    // fail on allocation.
+    Table t;
+    ASSERT_EQ(table_init(&t), 0);
+    const char *keys[] = {"size", "time", "port", "path", "name", "user"};
+    for (int i = 0; i < 6; i++) {
+        ASSERT_EQ(table_put(&t, keys[i], i), 0);
+    }
+    cmetal_fail_next_alloc();
+    ASSERT_EQ(table_put(&t, "size", 99), 0);
+    cmetal_alloc_reset();
+    ASSERT_EQ(t.capacity, 8u);
+    int v = 0;
+    ASSERT_EQ(table_get(&t, "size", &v), 0);
+    ASSERT_EQ(v, 99);
+    table_free(&t);
+}
+
 TEST(test_failed_growth_leaves_table_usable) {
     Table t;
     ASSERT_EQ(table_init(&t), 0);
@@ -217,6 +239,7 @@ TEST(test_failed_growth_leaves_table_usable) {
 int main(void) {
     RUN_TEST(test_put_get_before_growth);
     RUN_TEST(test_growth_rehashes);
+    RUN_TEST(test_update_does_not_require_growth);
     RUN_TEST(test_failed_growth_leaves_table_usable);
     TEST_REPORT();
 }

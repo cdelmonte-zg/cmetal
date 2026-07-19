@@ -169,6 +169,25 @@ TEST(test_slot_is_reusable_after_delete) {
     ASSERT_EQ(v, 2);
 }
 
+TEST(test_update_existing_key_past_tombstone) {
+    // The subtle half of tombstone reuse: put must keep probing PAST
+    // the first tombstone looking for an existing key — inserting into
+    // the tombstone immediately would create a duplicate "time".
+    Table t;
+    table_init(&t);
+    ASSERT_EQ(table_put(&t, "size", 1), 0);
+    ASSERT_EQ(table_put(&t, "time", 2), 0);
+    ASSERT_EQ(table_delete(&t, "size"), 0);
+    ASSERT_EQ(table_put(&t, "time", 3), 0);
+    int v = 0;
+    ASSERT_EQ(table_get(&t, "time", &v), 0);
+    ASSERT_EQ(v, 3);
+    /* The duplicate's tell: ONE delete must remove "time" entirely.
+     * A ghost twin left past the tombstone would resurface here. */
+    ASSERT_EQ(table_delete(&t, "time"), 0);
+    ASSERT_EQ(table_get(&t, "time", &v), -1);
+}
+
 TEST(test_ghosts_do_not_fill_the_table) {
     // A busy table: insert and delete over and over. Without tombstone
     // REUSE, the ghosts eat every slot and inserts start failing even
@@ -189,6 +208,7 @@ int main(void) {
     RUN_TEST(test_delete_then_miss);
     RUN_TEST(test_chain_survives_deletion);
     RUN_TEST(test_slot_is_reusable_after_delete);
+    RUN_TEST(test_update_existing_key_past_tombstone);
     RUN_TEST(test_ghosts_do_not_fill_the_table);
     TEST_REPORT();
 }

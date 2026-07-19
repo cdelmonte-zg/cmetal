@@ -1028,8 +1028,10 @@ multiply by the prime (multiply-first is FNV-1, a different function
 with different published vectors) — and the byte must be UNSIGNED.
 """,
   """
-`char` is signed on our targets: for bytes >= 0x80, (uint32_t)*p
-sign-extends to 0xFFFFFFxx before the xor. Cast through uint8_t:
+Plain char MAY be signed (it is on the current CI targets): for
+bytes >= 0x80, (uint32_t)*p then sign-extends to 0xFFFFFFxx before
+the xor — the bug is depending on that implementation choice at all.
+Cast through uint8_t:
   hash ^= (uint8_t)*p;
 """,
   """
@@ -1111,10 +1113,12 @@ hash % new_cap and place it in the first free slot. (No tombstones
 here: this table has no delete, so a plain probe suffices.)
 """,
   """
-Two more contract points: free the OLD array once the new one is in
-place (the demo grows once — the leak sanitizer counts generations),
-and if the new allocation fails return -1 with the table untouched —
-cmetal_fail_next_alloc in the tests forces exactly that.
+Three more contract points: an UPDATE is not an insertion — look the
+key up first, and only grow for real insertions (updating at high
+load must neither grow nor fail); free the OLD array once the new one
+is in place (the demo grows once — the leak sanitizer counts
+generations); if the growth allocation fails return -1 with the table
+untouched — cmetal_fail_next_alloc forces exactly that.
 """,
 ]
 

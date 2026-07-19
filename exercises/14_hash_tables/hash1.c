@@ -7,10 +7,11 @@
 //   1. the operation ORDER: multiply-then-xor is a different algorithm
 //      (FNV-1) with different output — every published FNV-1a test
 //      vector disagrees with it;
-//   2. the BYTE: `char` is signed on our targets, so bytes >= 0x80
-//      sign-extend before the XOR and corrupt the hash for any
-//      non-ASCII input ("café" hashes differently on signed-char and
-//      unsigned-char platforms — the classic portability bug).
+//   2. the BYTE: plain `char` may be signed — and IS signed on the
+//      current CI targets — so bytes >= 0x80 sign-extend before the
+//      XOR. The same input then hashes differently on signed-char and
+//      unsigned-char platforms: the bug is precisely the dependence
+//      on an implementation-defined choice.
 //
 // (Editorial note: content fingerprints, dedup, cache keys, dispatch
 // on strings — a hash function is everywhere. Interpreters use this
@@ -32,8 +33,8 @@ uint32_t fnv1a(const char *s) {
     for (const char *p = s; *p != '\0'; p++) {
         // BUG: FNV-1a is xor-THEN-multiply; this is the other one.
         hash *= FNV_PRIME;
-        // BUG: *p is a (signed) char — bytes >= 0x80 sign-extend to
-        // 0xFFFFFFxx before the xor.
+        // BUG: *p is plain char (signed here) — bytes >= 0x80
+        // sign-extend to 0xFFFFFFxx before the xor.
         hash ^= (uint32_t)*p;
     }
     return hash;
@@ -58,9 +59,10 @@ TEST(test_published_vectors) {
     ASSERT_EQ(fnv1a("hello"), 0x4F9F2CABu);
 }
 
-TEST(test_non_ascii_bytes) {
-    // "caf\xE8" — the 0xE8 byte must be hashed as 0xE8, not as the
-    // sign-extended 0xFFFFFFE8.
+TEST(test_high_bit_bytes) {
+    // "caf\xE8" — an arbitrary byte sequence containing 0xE8: the
+    // hash operates on unsigned BYTES (no text encoding involved),
+    // so 0xE8 must be hashed as 0xE8, not as 0xFFFFFFE8.
     ASSERT_EQ(fnv1a("caf\xE8"), 0x3408C00Fu);
 }
 
@@ -71,7 +73,7 @@ TEST(test_different_strings_differ) {
 
 int main(void) {
     RUN_TEST(test_published_vectors);
-    RUN_TEST(test_non_ascii_bytes);
+    RUN_TEST(test_high_bit_bytes);
     RUN_TEST(test_different_strings_differ);
     TEST_REPORT();
 }
