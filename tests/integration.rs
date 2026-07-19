@@ -380,6 +380,7 @@ fn cli_run_and_verify_persist_state() {
         &[
             ("ok1", "00_intro", "int main(void) { return 0; }\n"),
             ("ok2", "00_intro", "int main(void) { return 0; }\n"),
+            ("ok3", "00_intro", "int main(void) { return 0; }\n"),
         ],
     );
 
@@ -394,6 +395,25 @@ fn cli_run_and_verify_persist_state() {
         .expect("run must write the state file");
     assert!(state.contains("ok1"), "run must mark the exercise done");
 
+    // ...a `clings solution` unlocked by an on-the-spot verify pass must
+    // persist that completion too (before `verify` runs, so the unlock
+    // really goes through the verified-now path)...
+    let output = Command::new(clings_bin())
+        .args(["solution", "ok3"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let state = std::fs::read_to_string(tmp.path().join(".clings-state.txt")).unwrap();
+    assert!(
+        state.contains("ok3"),
+        "solution must mark a verified-now exercise done, state:\n{state}"
+    );
+    assert!(
+        !state.contains("ok2"),
+        "ok2 has not been verified yet, state:\n{state}"
+    );
+
     // ...and `clings verify` must persist every exercise that passed.
     let output = Command::new(clings_bin())
         .arg("verify")
@@ -403,7 +423,7 @@ fn cli_run_and_verify_persist_state() {
     assert!(output.status.success());
     let state = std::fs::read_to_string(tmp.path().join(".clings-state.txt")).unwrap();
     assert!(
-        state.contains("ok1") && state.contains("ok2"),
+        state.contains("ok1") && state.contains("ok2") && state.contains("ok3"),
         "verify must mark passing exercises done, state:\n{state}"
     );
 }

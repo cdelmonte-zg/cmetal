@@ -254,11 +254,13 @@ fn main() -> Result<()> {
             // For exercises that don't support the current compiler a verify
             // pass would be meaningless (the bug may not even be detectable),
             // so only completed ones unlock.
-            let unlocked = state.is_done(&name)
-                || (exercise.supported && exercise.verify(&compiler, &build_dir)?.success);
+            let already_done = state.is_done(&name);
+            let verified_now = !already_done
+                && exercise.supported
+                && exercise.verify(&compiler, &build_dir)?.success;
 
             println!();
-            if !unlocked {
+            if !already_done && !verified_now {
                 term::print_warning(&format!(
                     "{name} is not solved yet. Fix it first — then the solution unlocks!"
                 ));
@@ -269,6 +271,14 @@ fn main() -> Result<()> {
             let path = exercise.reveal_solution()?;
             term::print_success(&format!("Solution for {name}: {}", path.display()));
             println!();
+
+            // The verify pass that just unlocked the solution is a completion
+            // like any other: persist it, or `clings list` keeps showing the
+            // exercise as pending.
+            if verified_now {
+                state.mark_done(&name);
+                state.save()?;
+            }
         }
         Some(Commands::List) => {
             println!();
