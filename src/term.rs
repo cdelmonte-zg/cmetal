@@ -1,10 +1,13 @@
 use crossterm::style::{Attribute, Color, SetAttribute, SetForegroundColor};
 use std::io;
 
-
 pub fn print_success(msg: &str) {
     let mut stdout = io::stdout();
-    let _ = crossterm::execute!(stdout, SetForegroundColor(Color::Green), SetAttribute(Attribute::Bold));
+    let _ = crossterm::execute!(
+        stdout,
+        SetForegroundColor(Color::Green),
+        SetAttribute(Attribute::Bold)
+    );
     print!("  ✓ ");
     let _ = crossterm::execute!(stdout, SetAttribute(Attribute::Reset));
     println!("{msg}\r");
@@ -12,7 +15,11 @@ pub fn print_success(msg: &str) {
 
 pub fn print_error(msg: &str) {
     let mut stdout = io::stdout();
-    let _ = crossterm::execute!(stdout, SetForegroundColor(Color::Red), SetAttribute(Attribute::Bold));
+    let _ = crossterm::execute!(
+        stdout,
+        SetForegroundColor(Color::Red),
+        SetAttribute(Attribute::Bold)
+    );
     print!("  ✗ ");
     let _ = crossterm::execute!(stdout, SetAttribute(Attribute::Reset));
     println!("{msg}\r");
@@ -20,7 +27,11 @@ pub fn print_error(msg: &str) {
 
 pub fn print_warning(msg: &str) {
     let mut stdout = io::stdout();
-    let _ = crossterm::execute!(stdout, SetForegroundColor(Color::Yellow), SetAttribute(Attribute::Bold));
+    let _ = crossterm::execute!(
+        stdout,
+        SetForegroundColor(Color::Yellow),
+        SetAttribute(Attribute::Bold)
+    );
     print!("  ⚠ ");
     let _ = crossterm::execute!(stdout, SetAttribute(Attribute::Reset));
     println!("{msg}\r");
@@ -36,7 +47,11 @@ pub fn print_info(msg: &str) {
 
 pub fn print_header(msg: &str) {
     let mut stdout = io::stdout();
-    let _ = crossterm::execute!(stdout, SetForegroundColor(Color::Magenta), SetAttribute(Attribute::Bold));
+    let _ = crossterm::execute!(
+        stdout,
+        SetForegroundColor(Color::Magenta),
+        SetAttribute(Attribute::Bold)
+    );
     println!("\r\n  {msg}\r");
     let _ = crossterm::execute!(stdout, SetAttribute(Attribute::Reset));
 }
