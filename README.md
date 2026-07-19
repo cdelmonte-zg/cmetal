@@ -209,7 +209,7 @@ clings reset [name]          # all: clear progress; one: restore its file
 
 ---
 
-## Exercises (38 total)
+## Exercises (42 total)
 
 | Topic                 | #  | What you will learn                                 |
 |-----------------------|----|-----------------------------------------------------|
@@ -226,6 +226,7 @@ clings reset [name]          # all: clear progress; one: restore its file
 | 10 Error Handling     | 3  | Return codes, error propagation, error context       |
 | 11 Bitwise            | 3  | Bit counting, packing/unpacking, bit tricks          |
 | 12 Encodings          | 3  | Endianness, varints, bit packing — bytes on the wire |
+| 13 Tagged Unions      | 4  | Tag discipline, exhaustive dispatch, ownership, header-first polymorphism |
 
 ---
 
