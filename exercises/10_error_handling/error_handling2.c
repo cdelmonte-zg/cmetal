@@ -22,6 +22,11 @@
 #include <string.h>
 #include <limits.h>
 
+/* parse_int's limit arithmetic and the INT_MIN boundary test assume a
+ * 32-bit two's-complement int, per project convention (see ub3). */
+_Static_assert(INT_MAX == 2147483647 && INT_MIN == (-2147483647 - 1),
+               "error_handling2 requires a 32-bit two's-complement int");
+
 // Helper: returns 1 if s contains only digits (with optional leading '-'), 0 otherwise
 static int is_valid_int(const char *s, int len) {
     if (len <= 0) return 0;
