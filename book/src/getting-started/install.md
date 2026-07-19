@@ -43,17 +43,8 @@ cargo install --path .
 
 ## Get the exercises
 
-The binary embeds the full curriculum: however you installed it, the
-shortest path is a self-contained workspace —
-
-```bash
-clings init my-clings-course   # or just `clings init`
-cd my-clings-course
-clings
-```
-
-Cloning the repository works exactly the same way and remains the route
-for contributing exercises or following unreleased changes:
+However you installed the binary, clone the repository and run clings from
+inside it:
 
 ```bash
 git clone https://github.com/cdelmonte-zg/clings.git
@@ -61,8 +52,8 @@ cd clings
 clings
 ```
 
-Either way, on first run clings copies the exercises into `my_exercises/` —
-that is where you work. Head to the [Quickstart](quickstart.md).
+On first run clings copies the exercises into `my_exercises/` — that is where
+you work. Head to the [Quickstart](quickstart.md).
 
 ## Upgrade
 

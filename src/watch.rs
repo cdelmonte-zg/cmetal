@@ -60,9 +60,10 @@ pub fn run_watch(
         },
     )?;
 
-    debouncer
-        .watcher()
-        .watch(exercises_dir, notify::RecursiveMode::Recursive)?;
+    debouncer.watcher().watch(
+        exercises_dir,
+        notify::RecursiveMode::Recursive,
+    )?;
 
     // Show welcome message before entering alternate screen
     if let Some(msg) = welcome {
@@ -309,10 +310,7 @@ fn run_current_exercise(state: &AppState, compiler: &Compiler, build_dir: &Path)
     match exercise.verify(compiler, build_dir) {
         Ok(result) => {
             if result.success {
-                term::print_success(&format!(
-                    "{} compiled and ran successfully!",
-                    exercise.name()
-                ));
+                term::print_success(&format!("{} compiled and ran successfully!", exercise.name()));
                 if !result.output.is_empty() {
                     term::print_stage_output("Program", &result.output);
                 }
@@ -326,11 +324,7 @@ fn run_current_exercise(state: &AppState, compiler: &Compiler, build_dir: &Path)
                 term::print_info("Press 'n' to move to the next exercise.");
                 true
             } else {
-                term::print_error(&format!(
-                    "{} failed at stage: {}",
-                    exercise.name(),
-                    result.stage
-                ));
+                term::print_error(&format!("{} failed at stage: {}", exercise.name(), result.stage));
                 term::print_stage_output(result.stage, &result.output);
                 false
             }

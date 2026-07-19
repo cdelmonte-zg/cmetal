@@ -134,8 +134,7 @@ impl Exercise {
         // Step 4: Compile and run with sanitizers (if enabled)
         if self.info.sanitizers {
             let san_bin = build_dir.join(format!("{}_san", self.info.name));
-            let result =
-                compiler.compile_with_sanitizers(&self.path, &san_bin, &self.info.flags)?;
+            let result = compiler.compile_with_sanitizers(&self.path, &san_bin, &self.info.flags)?;
             if !result.success {
                 return Ok(VerifyResult {
                     success: false,
