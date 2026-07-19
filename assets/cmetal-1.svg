@@ -26,7 +26,7 @@
 <text y="476"><tspan x="20.0" fill="#c8c8c8" xml:space="preserve">  </tspan></text>
 <text y="497"><tspan x="20.0" fill="#c8c8c8" xml:space="preserve">    Commands: [n]ext [p]rev [h]int [l]ist [r]e-run [q]uit</tspan></text>
 <text y="518"></text>
-<text y="539"><tspan x="20.0" fill="#c8c8c8" xml:space="preserve">  cmetal v0.3.0 — compiler: gcc</tspan></text>
+<text y="539"><tspan x="20.0" fill="#c8c8c8" xml:space="preserve">  cmetal v0.4.0 — compiler: gcc</tspan></text>
 <text y="560"></text>
 <text y="581"><tspan x="20.0" fill="#c8c8c8" xml:space="preserve">  Press any key to start...</tspan></text>
 </svg>
