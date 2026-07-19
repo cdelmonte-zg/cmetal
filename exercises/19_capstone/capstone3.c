@@ -23,7 +23,10 @@
 // independent of the buffer — its constants and code live in
 // allocations the chunk owns, released by chunk_free. Allocation
 // failures return ERR_ALLOC with nothing leaked and the chunk
-// unchanged (allocations go through CMETAL_MALLOC).
+// unchanged (allocations go through CMETAL_MALLOC). Empty chunks —
+// zero constants, zero code bytes — are valid files: malloc(0) may
+// return NULL without meaning failure, so allocate only when there
+// is something to copy.
 //
 // (Editorial note: "parse, then keep pointers into the input" is how
 // configuration loaders and message routers acquire lifetime bugs.
@@ -106,13 +109,18 @@ int chunk_load(const uint8_t *buf, size_t len, Chunk *out) {
         return ERR_TRUNCATED;
     }
 
-    /* the lifetime crossing: copy what the chunk keeps */
-    double *consts = CMETAL_MALLOC((size_t)const_count * sizeof(double));
-    if (!consts) {
-        return ERR_ALLOC;
-    }
-    for (size_t i = 0; i < const_count; i++) {
-        consts[i] = bits_to_double(read_u64_le(buf + consts_off + i * 8));
+    /* the lifetime crossing: copy what the chunk keeps. malloc(0)
+     * may return NULL without meaning failure, so allocate only when
+     * there is something to copy. */
+    double *consts = NULL;
+    if (const_count > 0) {
+        consts = CMETAL_MALLOC((size_t)const_count * sizeof(*consts));
+        if (!consts) {
+            return ERR_ALLOC;
+        }
+        for (size_t i = 0; i < const_count; i++) {
+            consts[i] = bits_to_double(read_u64_le(buf + consts_off + i * 8));
+        }
     }
 
     // BUG: the code is "borrowed" straight from the buffer — the
@@ -222,11 +230,45 @@ TEST(test_allocation_failure_is_clean) {
     cmetal_alloc_reset();
 }
 
+TEST(test_second_allocation_failure_unwinds_cleanly) {
+    // The interesting failure: constants allocated, code allocation
+    // fails. The constants must be released and the chunk untouched.
+    // The sentinel values are never dereferenced — they only prove
+    // that chunk_load did not write to out on the failure path.
+    Chunk sentinel = {
+        (double *)(uintptr_t)0x1, 7, (uint8_t *)(uintptr_t)0x2, 9
+    };
+    Chunk c = sentinel;
+    cmetal_allocs_until_fail = 1; /* first succeeds, second fails */
+    ASSERT_EQ(chunk_load(GOOD, sizeof(GOOD), &c), ERR_ALLOC);
+    ASSERT(c.consts == sentinel.consts);
+    ASSERT_EQ(c.const_count, sentinel.const_count);
+    ASSERT(c.code == sentinel.code);
+    ASSERT_EQ(c.code_len, sentinel.code_len);
+    cmetal_alloc_reset();
+}
+
+TEST(test_empty_chunk_is_a_valid_file) {
+    // Zero constants, zero code bytes: the format allows it, and
+    // malloc(0) returning NULL must not be mistaken for failure.
+    static const uint8_t empty[] = {
+        'C', 'M', 'B', 'C', 0x01, 0x00, 0x00, 0x00, /* 0 constants */
+        0x00, 0x00, 0x00, 0x00                      /* code_len 0 */
+    };
+    Chunk c = { NULL, 0, NULL, 0 };
+    ASSERT_EQ(chunk_load(empty, sizeof(empty), &c), LOAD_OK);
+    ASSERT_EQ(c.const_count, 0u);
+    ASSERT_EQ(c.code_len, 0u);
+    chunk_free(&c); /* free(NULL) is defined: this must be safe */
+}
+
 int main(void) {
     RUN_TEST(test_load_decodes_the_chunk);
     RUN_TEST(test_loaded_chunk_is_independent_of_the_buffer);
     RUN_TEST(test_validation_still_guards_the_border);
     RUN_TEST(test_allocation_failure_is_clean);
+    RUN_TEST(test_second_allocation_failure_unwinds_cleanly);
+    RUN_TEST(test_empty_chunk_is_a_valid_file);
     TEST_REPORT();
 }
 #endif

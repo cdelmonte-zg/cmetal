@@ -1575,9 +1575,11 @@ independence test does) and watch which field changes.
   """
 Copy the code like the constants: allocate code_len bytes through
 CMETAL_MALLOC, memcpy from buf + off. If that SECOND allocation
-fails, free the constants allocated before it and return ERR_ALLOC —
-error paths unwind what already succeeded (tagged3's rule at a file
-border).
+fails, free the constants allocated before it, return ERR_ALLOC and
+leave the chunk untouched — error paths unwind what already
+succeeded (tagged3's rule at a file border). And allocate only when
+the length is greater than zero: malloc(0) may return NULL without
+meaning failure, and an empty chunk is a valid file.
 """,
   """
 chunk_free releases both: free(c->consts); free(c->code). What load
