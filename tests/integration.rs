@@ -250,7 +250,10 @@ fn cli_solution_gated_until_solved() {
         .current_dir(tmp.path())
         .output()
         .unwrap();
-    assert!(!output.status.success(), "solution must be locked while failing");
+    assert!(
+        !output.status.success(),
+        "solution must be locked while failing"
+    );
     assert!(
         !tmp.path().join("my_solutions/00_intro/ex1.c").exists(),
         "solution must not be revealed while the exercise fails"
@@ -426,6 +429,96 @@ fn cli_run_and_verify_persist_state() {
         state.contains("ok1") && state.contains("ok2") && state.contains("ok3"),
         "verify must mark passing exercises done, state:\n{state}"
     );
+}
+
+#[test]
+fn cli_init_creates_selfcontained_workspace() {
+    let tmp = TempDir::new().unwrap();
+    let ws = tmp.path().join("course");
+
+    let output = Command::new(clings_bin())
+        .arg("init")
+        .arg(&ws)
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "init failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(ws.join("info.toml").exists());
+    assert!(ws.join("exercises/00_intro/intro1.c").exists());
+    assert!(ws.join("include/clings_test.h").exists());
+    assert!(ws.join("include/clings_alloc.h").exists());
+    assert!(ws.join("solutions/00_intro/intro1.c.enc").exists());
+    assert!(ws.join(".clings/manifest.json").exists());
+    // The archive must never ship plaintext solutions
+    assert!(!ws.join("solutions/00_intro/intro1.c").exists());
+
+    // init must refuse to clobber an existing workspace
+    let output = Command::new(clings_bin())
+        .arg("init")
+        .arg(&ws)
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(
+        !output.status.success(),
+        "init must not overwrite a workspace"
+    );
+
+    // ...and must refuse ANY non-empty directory, leaving it untouched
+    let occupied = tmp.path().join("occupied");
+    std::fs::create_dir(&occupied).unwrap();
+    std::fs::write(occupied.join("keep.txt"), "do not overwrite").unwrap();
+    let output = Command::new(clings_bin())
+        .arg("init")
+        .arg(&occupied)
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(
+        !output.status.success(),
+        "init must refuse a non-empty directory"
+    );
+    assert_eq!(
+        std::fs::read_to_string(occupied.join("keep.txt")).unwrap(),
+        "do not overwrite"
+    );
+    assert!(!occupied.join("info.toml").exists());
+
+    // An existing but EMPTY directory is fine
+    let empty = tmp.path().join("empty");
+    std::fs::create_dir(&empty).unwrap();
+    let output = Command::new(clings_bin())
+        .arg("init")
+        .arg(&empty)
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "init must accept an empty directory: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(empty.join("info.toml").exists());
+
+    // The engine treats the workspace exactly like a repo checkout
+    if has_gcc() {
+        let output = Command::new(clings_bin())
+            .arg("list")
+            .current_dir(&ws)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "list in workspace failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.contains("intro1"), "list should show the curriculum");
+    }
 }
 
 #[test]
