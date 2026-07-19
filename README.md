@@ -209,7 +209,7 @@ cmetal reset [name]          # all: clear progress; one: restore its file
 
 ---
 
-## Exercises (53 total)
+## Exercises (59 total)
 
 | Topic                 | #  | What you will learn                                 |
 |-----------------------|----|-----------------------------------------------------|
@@ -230,6 +230,8 @@ cmetal reset [name]          # all: clear progress; one: restore its file
 | 14 Hash Tables        | 5  | FNV-1a, probing, tombstones, rehash on growth, interning |
 | 15 Arenas             | 3  | Bump allocation, alignment, chained growth, escape discipline |
 | 16 Garbage Collection | 3  | Mark-sweep: reachability, cycles, sweep discipline, finalization |
+| 17 NaN Boxing         | 3  | IEEE-754 bit layout, legal punning, mask discipline, payload packing |
+| 18 Bytecode Dispatch  | 3  | Defensive stream decoding, refusable stacks, jump-table discipline |
 
 ---
 

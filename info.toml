@@ -1317,3 +1317,183 @@ failed share leaves dst unchanged (tagged3's transition rule). The
 structural test pins a->name != b->name after sharing.
 """,
 ]
+
+# ── 17: NaN Boxing ──────────────────────────────────────
+#
+# An IEEE-754 double whose exponent bits are all ones and whose
+# mantissa is nonzero is NaN — and the mantissa is free payload. One
+# 64-bit word can carry a full double OR a tagged value. The topic is
+# mask discipline: which bits mean what, on both sides of every
+# encode/decode pair.
+
+[[exercises]]
+name = "nanbox1"
+dir = "17_nan_boxing"
+test = true
+sanitizers = true
+hints = [
+  """
+Two separate problems. First: 0.0/0.0 produces the quiet NaN — the
+exact pattern this BOX_MASK claims as boxed space, so an ordinary
+arithmetic result stops being a double. You do not own every NaN.
+Second: look at what box_bool(true) collides with.
+""",
+  """
+The boxed space must be a NaN subspace the canonical NaNs stay out
+of: set one MORE mantissa bit. BOX_MASK = QNAN | (1 << 50) — now
+(v & BOX_MASK) == BOX_MASK is false for the NaNs invalid operations
+produce, both signs included. (Payload PROPAGATION means crafted NaN
+payloads stay outside the representable domain — the header says so
+explicitly; scoping the claim is part of the technique.)
+""",
+  """
+box_bool should not build patterns arithmetically at all: return the
+named singletons (b ? TRUE_VAL : FALSE_VAL). The broken OR made
+false an unassigned pattern and true equal to NIL_VAL — the test
+pins all three singletons pairwise distinct.
+""",
+]
+
+[[exercises]]
+name = "nanbox2"
+dir = "17_nan_boxing"
+test = true
+sanitizers = true
+hints = [
+  """
+box_int(-5): what does (uint64_t)i do to a negative int32_t? Print
+the bits. Then look at where the tag field lives (bits 48-49) and
+what just flooded it. For value_equal, try 0.0 and -0.0: equal
+numbers, different bits.
+""",
+  """
+Widening a signed integer sign-extends. Hop through (uint32_t)
+first: (uint64_t)(uint32_t)i is exactly 32 payload bits, zeros
+above. This is the general rule for packing: mask the payload to the
+bits you mean BEFORE placing it.
+""",
+  """
+value_equal needs a type dispatch: if both values are doubles,
+compare as_double(a) == as_double(b) — IEEE equality makes
+0.0 == -0.0 true and NaN != NaN false, both correct here. Everything
+else compares by bit identity. (This is why memcmp on structs with
+float fields is a bug, not an optimization.)
+""",
+]
+
+[[exercises]]
+name = "nanbox3"
+dir = "17_nan_boxing"
+test = true
+sanitizers = true
+hints = [
+  """
+Two masking mistakes, one per direction. Encoding: what does
+& 0xffffffff keep of a 64-bit address? Decoding: what is still set
+in the word as_ptr returns? The demo's crash is far from either —
+it dereferences the mangled pointer.
+""",
+  """
+box_ptr needs no cut at all: the contract covers addresses that fit
+in the low 48 bits (mainstream user-space today), the tag occupies
+the top bits, so PTR_TAG | (uintptr_t)p keeps the whole address. The
+synthetic-address test uses payload bits above 32 precisely to catch
+the truncation.
+""",
+  """
+as_ptr must strip exactly what box_ptr added: (v & ~PTR_TAG). The
+pair is symmetric or it is wrong — a rule that holds for every
+encode/decode boundary, not just this one. And note is_ptr: sign bit
+plus quiet NaN alone is NOT enough (the hardware's negative NaN has
+both); bit 50 of BOX_MASK is what makes the pattern ours.
+""",
+]
+
+# ── 18: Bytecode Dispatch ───────────────────────────────
+#
+# A dispatch loop over an instruction stream is a state machine over
+# untrusted input, and its stack is a bounded resource. Decode
+# defensively, refuse impossible operations, and keep jump tables in
+# sync with the index space — none of which the compiler checks.
+
+[[exercises]]
+name = "bytecode1"
+dir = "18_bytecode"
+test = true
+sanitizers = true
+hints = [
+  """
+Three places trust the stream: the operand fetch (can the stream end
+between an opcode and its operand?), the constant index (who says
+it is inside the pool?), and the default case (is an unknown byte
+noise or corruption?). The error codes name each failure — the tests
+check for the SPECIFIC one.
+""",
+  """
+Before reading an operand byte: if (pc >= chunk->code_len) return
+ERR_TRUNCATED. After reading the index: if (idx >=
+chunk->const_count) return ERR_BAD_CONST. Bounds first, then use —
+the same shape as every network-parser check.
+""",
+  """
+The default case returns ERR_BAD_OPCODE. Silently skipping unknown
+instructions turns one corrupt byte into an arbitrarily wrong
+execution — the truncated-stream test also shows why "run off the
+end and report no-halt" is not the same as detecting truncation
+where it happens.
+""",
+]
+
+[[exercises]]
+name = "bytecode2"
+dir = "18_bytecode"
+test = true
+sanitizers = true
+hints = [
+  """
+The stack has two failure ends: pop from empty (reads below the
+array, sp wraps to (size_t)-1) and push past STACK_MAX (writes past
+the end). Both are properties of the INPUT program, so both must
+become ERR_STACK — the current push/pop signatures cannot even say
+no.
+""",
+  """
+Make the helpers refusable: int push(stack, sp, v) returning -1 when
+*sp == STACK_MAX; int pop(stack, sp, double *out) returning -1 when
+*sp == 0. The popped value moves to an out-parameter so the return
+channel can carry the refusal.
+""",
+  """
+Every call site converts a refusal into ERR_STACK: OP_ADD pops b,
+pops a, pushes a+b — three checks. Note the boundary test: EXACTLY
+STACK_MAX pushes is legal; the 17th is not. Off-by-one lives at
+== STACK_MAX vs > STACK_MAX.
+""",
+]
+
+[[exercises]]
+name = "bytecode3"
+dir = "18_bytecode"
+test = true
+sanitizers = true
+flags = ["-std=gnu11", "-Wno-pedantic"]
+hints = [
+  """
+Two bugs a switch would have caught. Run the mul test: 2 * 4 gives
+-4 — which handler actually executed? Now trace OP_MUL (value 3)
+into dispatch_table[3] and read the table's order against the
+enum's. Then run 2 + 3 alone and watch it come back ERR_STACK.
+""",
+  """
+The table is positional: slot N must hold the handler for opcode N.
+The enum says OP_MUL = 3, OP_NEG = 4 — the table's last two entries
+are swapped. Fix the ORDER, not the enum.
+""",
+  """
+Handlers do not "break": control leaves only via an explicit
+DISPATCH(). The add handler is missing its dispatch, so execution
+falls through into the multiply handler — a forgotten break in a
+switch, but with no -Wimplicit-fallthrough to warn. Every handler
+ends with DISPATCH() or a return.
+""",
+]

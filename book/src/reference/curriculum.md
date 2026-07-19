@@ -1,6 +1,6 @@
 # The curriculum
 
-cmetal ships **53 exercises across 17 topics**, ordered roughly from warm-up to
+cmetal ships **59 exercises across 19 topics**, ordered roughly from warm-up to
 the parts of C that bite in code review. Each is a real bug — the kind found in
 production C — never a fill-in-the-blanks template.
 
@@ -23,6 +23,8 @@ production C — never a fill-in-the-blanks template.
 | 14 | Hash Tables           | 5         | FNV-1a, probing, tombstones, rehash on growth, interning |
 | 15 | Arenas                | 3         | Bump allocation, alignment, chained growth, escape discipline |
 | 16 | Garbage Collection    | 3         | Mark-sweep: reachability, cycles, sweep discipline, finalization |
+| 17 | NaN Boxing            | 3         | IEEE-754 bit layout, legal punning, mask discipline, payload packing |
+| 18 | Bytecode Dispatch     | 3         | Defensive stream decoding, refusable stacks, jump-table discipline |
 
 ## How the topics build
 
