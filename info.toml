@@ -1148,3 +1148,84 @@ demo does it on purpose). On allocation failure return NULL with the
 pool untouched.
 """,
 ]
+
+# ── 15: Arenas ──────────────────────────────────────────
+#
+# Lifetime by construction: allocate by bumping, free everything at
+# once — and copy out whatever must survive.
+
+[[exercises]]
+name = "arena1"
+dir = "15_arenas"
+test = true
+sanitizers = true
+hints = [
+  """
+Two rules make a bump allocator: round the cursor UP to ARENA_ALIGN
+before each allocation (or an odd-sized request misaligns the next
+one), and stop at the end of the block (or the bump walks off it).
+""",
+  """
+Alignment is a mask: start = (used + ALIGN-1) & ~(ALIGN-1).
+The capacity check must come BEFORE the bump — and watch the form:
+used + size can overflow. Guard size > capacity first, then compare
+start > capacity - size (encodings2's lesson, allocator edition).
+""",
+  """
+On a refused request return NULL and change NOTHING: the tests
+allocate right after a refusal and expect the arena intact.
+""",
+]
+
+[[exercises]]
+name = "arena2"
+dir = "15_arenas"
+test = true
+sanitizers = true
+hints = [
+  """
+Two bugs: an oversized request (bigger than any block, present or
+future) slips through the bounds check, and the fresh block replaces
+the head WITHOUT linking to the previous generation — destroy then
+frees only the newest block, and the leak sanitizer counts the rest.
+""",
+  """
+Guard first: if (size > ARENA_BLOCK_SIZE) return NULL. Without it,
+ARENA_BLOCK_SIZE - size underflows (both unsigned) and the check
+silently passes — the same subtraction trap encodings2 pinned.
+""",
+  """
+Growth is a push onto the chain:
+  fresh->next = a->head;
+  a->head = fresh;
+destroy already walks ->next — it finds every generation as soon as
+the chain is real.
+""",
+]
+
+[[exercises]]
+name = "arena3"
+dir = "15_arenas"
+test = true
+sanitizers = true
+hints = [
+  """
+The boundary rule: everything ALLOCATED for the request may live in
+the scratch arena; everything RETURNED from the request must not —
+it dies at arena_destroy, and the caller is still holding it. And a
+missing '=' is a parse error, not a license to scan past the
+terminator.
+""",
+  """
+strchr(line, '=') returns NULL when absent: that's the error path
+(return NULL). The tests also probe the empty line and "key=" (an
+empty VALUE is valid; a missing delimiter is not).
+""",
+  """
+Copy the value OUT: allocate with CMETAL_MALLOC (caller owns and
+frees), memcpy len+1 bytes. Scratch keeps the temporaries — the key
+copy in the solution stands for a real handler's per-request work.
+test_result_escapes_the_arena checks structurally that the result is
+not arena-owned; the demo checks it the hard way, after destroy.
+""",
+]

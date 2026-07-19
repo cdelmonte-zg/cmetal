@@ -14,7 +14,7 @@ that actually hurt.
 
 ## Where we are
 
-Today cmetal ships 47 exercises across 15 topics (pointers, memory, UB,
+Today cmetal ships 50 exercises across 16 topics (pointers, memory, UB,
 strings, structs, function pointers, const, error handling, bitwise), a
 watch-mode TUI with progressive hints, sanitizer-backed verification,
 solutions that unlock only after you solve the exercise, and a
@@ -73,7 +73,8 @@ chapters.
   struct idiom (topic 13).
 - **Hash tables from scratch** ✓ — FNV-1a, open addressing,
   tombstones, rehash on growth, string interning (topic 14).
-- **Arena allocators** — ownership at scale, lifetime by construction.
+- **Arena allocators** ✓ — bump allocation and alignment, chained
+  growth, escape discipline at the lifetime boundary (topic 15).
 - **A mark-sweep GC on a toy heap** — with AddressSanitizer as the
   judge, because a GC bug *is* a use-after-free.
 - **NaN boxing** and **bytecode dispatch** (the portable switch, and
