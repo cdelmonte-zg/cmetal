@@ -35,7 +35,7 @@ Two design choices keep this honest:
 
 - **Solutions unlock only after you solve the exercise.** You can't peek your
   way past a problem — the file simply isn't there until you've earned it.
-- **Solutions are stored obfuscated in the repo** (`.c.enc` files), so casually
+- **Solutions are stored obfuscated on disk** (`.c.enc` files), so casually
   browsing the repository on GitHub or in your editor never spoils an answer.
   clings decodes the one you earned into `my_solutions/` when you pass.
 

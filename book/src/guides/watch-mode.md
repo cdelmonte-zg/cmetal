@@ -52,7 +52,7 @@ a compiler with `--compiler`, or you just want to force a fresh run.
 ## Progress persists
 
 Your position and which exercises you've solved are written to
-`.clings-state.txt` in the repo. Quit whenever; the next `clings` resumes
+`.clings-state.txt` in your workspace. Quit whenever; the next `clings` resumes
 exactly where you were. To wipe it and start clean, use
 [`clings reset`](cli.md).
 
