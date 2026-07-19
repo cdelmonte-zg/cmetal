@@ -4,15 +4,21 @@ Five minutes, one exercise, start to green.
 
 ## Start
 
-From inside the cloned repository:
+Create a workspace (once) and run clings from inside it:
 
 ```bash
+clings init my-clings-course
+cd my-clings-course
 clings
 ```
 
+(A cloned repository works exactly the same way — just run `clings`
+from inside the clone.)
+
 The first run copies the pristine exercises from `exercises/` into
-`my_exercises/` — a gitignored workspace, so your edits never dirty the repo —
-and drops you on the first unsolved exercise in watch mode.
+`my_exercises/` — that is where you work; your edits never touch the
+pristine copies — and drops you on the first unsolved exercise in
+watch mode.
 
 ## Fix your first exercise
 

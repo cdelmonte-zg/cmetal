@@ -27,11 +27,11 @@ impl Exercise {
         solutions_dir: &Path,
         compiler: &str,
     ) -> Self {
-        let file = format!("{}.c", info.name);
-        let path = exercises_dir.join(&info.dir).join(&file);
-        let solution_path = solutions_dir.join(&info.dir).join(&file);
+        let rel = info.rel_path();
+        let path = exercises_dir.join(&rel);
+        let solution_path = solutions_dir.join(&rel);
         let base_dir = solutions_dir.parent().unwrap_or(solutions_dir);
-        let reveal_path = base_dir.join("my_solutions").join(&info.dir).join(&file);
+        let reveal_path = base_dir.join("my_solutions").join(&rel);
         let supported = info.supports_compiler(compiler);
         Self {
             info,

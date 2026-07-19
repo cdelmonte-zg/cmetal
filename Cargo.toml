@@ -20,6 +20,7 @@ base64 = "0.22"
 console = "0.15"
 tar = "0.4"
 flate2 = "1"
+similar = "2"
 
 [build-dependencies]
 tar = "0.4"
