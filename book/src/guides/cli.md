@@ -4,6 +4,19 @@ Running `clings` with no arguments starts [watch mode](watch-mode.md). The
 subcommands below do one thing and exit — handy for scripting, for jumping to a
 specific exercise, or for checking progress without entering the loop.
 
+## `clings init [dir]`
+
+Create a self-contained workspace from the curriculum embedded in the
+binary — no git clone needed. With no argument it creates
+`./clings-workspace`. The target must be a new or empty directory:
+`init` refuses to touch a directory that already has content.
+
+```bash
+clings init my-clings-course
+cd my-clings-course
+clings
+```
+
 ## `clings run <name>`
 
 Compile, run, and verify a single exercise, print the result, and exit.
@@ -36,6 +49,16 @@ exercise passes.
 clings solution pointers2
 ```
 
+## `clings diff <name>`
+
+Show how your working copy differs from the pristine exercise, as a
+unified diff. Useful after `clings update` reports that an exercise
+changed upstream while you had edits.
+
+```bash
+clings diff pointers1
+```
+
 ## `clings list`
 
 List every exercise with its status — solved, pending, or skipped (e.g.
@@ -57,14 +80,30 @@ clings verify
 clings verify --compiler clang
 ```
 
-## `clings reset`
+## `clings update`
 
-Clear your progress and restore the pristine exercises into `my_exercises/`.
-Your solved-state in `.clings-state.txt` is wiped and revealed solutions are
-cleared. Nothing outside the clings workspace is touched.
+Bring an [init-created](#clings-init-dir) workspace up to date with the
+curriculum embedded in the binary (upgrade the binary first: that is how
+new exercises arrive). Your work is safe: working copies you edited are
+never overwritten — if their exercise changed upstream, update says so
+and points you at `clings diff`/`clings reset` — while copies you never
+touched are refreshed automatically. Interrupted updates are recovered
+on the next run. In a git checkout, use `git pull` instead.
 
 ```bash
-clings reset
+clings update
+```
+
+## `clings reset [name]`
+
+With a name: restore that one exercise's working copy to the pristine
+version and mark it pending again — other progress is kept. Without:
+clear ALL progress and restore every pristine exercise into
+`my_exercises/`. Nothing outside the clings workspace is touched.
+
+```bash
+clings reset pointers1   # redo one exercise
+clings reset             # start over completely
 ```
 
 ## `--compiler <gcc|clang>`

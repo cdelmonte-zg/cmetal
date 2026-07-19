@@ -15,9 +15,11 @@ that actually hurt.
 
 Today clings ships 35 exercises across 12 topics (pointers, memory, UB,
 strings, structs, function pointers, const, error handling, bitwise), a
-watch-mode TUI with progressive hints, sanitizer-backed verification, a
-gitignored workspace so your progress never pollutes the repo, and
-solutions that unlock only after you solve the exercise.
+watch-mode TUI with progressive hints, sanitizer-backed verification,
+solutions that unlock only after you solve the exercise, and a
+self-contained distribution: the binary embeds the curriculum, `clings
+init` materializes a private workspace with no git clone, and `clings
+update` delivers new exercises without ever overwriting your work.
 
 ## Design principles
 
@@ -63,8 +65,9 @@ These are the non-negotiables that every future change must respect:
 
 - **C23 track** as compiler support matures (`nullptr`, `constexpr`,
   checked arithmetic).
-- **Packaged distribution** (crates.io, Homebrew, distro packages) so
-  `clings` is one install command away.
+- **Packaged distribution** so `clings` is one install command away —
+  Homebrew and the self-contained binary exist; crates.io and distro
+  packages still to come.
 - **Community exercise pipeline:** contributing a new exercise should be
   a 30-minute task with the invariant checker as the only gatekeeper.
 - **Localized hints** — the code stays English, the teaching can speak
