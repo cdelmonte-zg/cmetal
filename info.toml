@@ -183,13 +183,15 @@ test = true
 sanitizers = false
 hints = [
   """
-Modifying a variable and reading it again in the same expression,
-with no sequence point in between, is undefined behavior (C11 6.5p2).
-gcc and clang spot these patterns with -Wall; -Werror makes the build fail.
+In C11, a side effect on a scalar object that is unsequenced relative
+to another side effect on it — or to a read of its value — is undefined
+behavior (C11 6.5p2). gcc and clang spot these patterns with -Wall;
+-Werror makes the build fail.
 """,
   """
 In arr[i++] = start + i: is the i on the right the old value or the
-incremented one? The standard says neither — the whole expression is UB.
+incremented one? Neither is guaranteed — the increment and the read are
+unsequenced, so the whole expression is UB.
 Give the increment its own statement.
 """,
   """
@@ -208,8 +210,9 @@ sanitizers = true
 hints = [
   """
 What type does a uint16_t * uint16_t multiplication happen in?
-Not uint16_t: anything narrower than int is promoted first —
-to SIGNED int (C11 6.3.1.1).
+Not uint16_t: anything narrower than int is promoted first. On the
+platforms clings supports, int is 32 bits and can hold every uint16_t
+value, so the promotion target is SIGNED int (C11 6.3.1.1).
 """,
   """
 0xFFFF * 0xFFFF = 4294836225, but INT_MAX is 2147483647.

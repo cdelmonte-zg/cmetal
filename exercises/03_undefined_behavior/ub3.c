@@ -1,20 +1,30 @@
 // ub3.c - Integer promotion: the hidden signed int
 //
-// Arithmetic in C never happens on types narrower than int. Operands of
-// type uint8_t, uint16_t or unsigned short are first promoted -- to
-// SIGNED int, because int can represent all their values (C11 6.3.1.1).
+// Arithmetic in C never happens on types narrower than int. On the
+// desktop targets clings supports, int is 32 bits, so operands of type
+// uint8_t or uint16_t are promoted to SIGNED int -- int can represent
+// every one of their values (C11 6.3.1.1). (On a platform with 16-bit
+// int, uint16_t would be promoted to unsigned int instead, and this
+// particular trap would not exist; the _Static_assert below pins down
+// the assumption.)
 //
-// So `uint16_t * uint16_t` is a signed multiplication: 0xFFFF * 0xFFFF
-// = 4294836225, which is larger than INT_MAX (2147483647). That is
-// signed overflow -- undefined behavior -- in code with no signed type
-// in sight. Without sanitizers it usually "works" (the wrapped bits
-// happen to be right); UBSan reports it for what it is.
+// So here `uint16_t * uint16_t` is a signed multiplication: 0xFFFF *
+// 0xFFFF = 4294836225, which is larger than INT_MAX (2147483647).
+// That is signed overflow -- undefined behavior -- in code with no
+// signed type in sight. Without sanitizers it usually "works" (the
+// wrapped bits happen to be right); UBSan reports it for what it is.
 //
 // Fix: cast one operand to uint32_t BEFORE the arithmetic, so the
-// promotion target is unsigned and the multiplication is well-defined.
+// conversions target an unsigned type and the multiplication is
+// well-defined.
 
 #include <stdio.h>
 #include <stdint.h>
+#include <inttypes.h>
+#include <limits.h>
+
+/* The promotion trap this exercise teaches only exists with 32-bit int. */
+_Static_assert(INT_MAX == 2147483647, "ub3 requires a 32-bit int");
 
 // Returns x*x. The RESULT always fits in uint32_t (0xFFFF^2 < 2^32) --
 // the problem is the type the multiplication itself happens in.
@@ -37,12 +47,12 @@ uint32_t dot_u16(const uint16_t *a, const uint16_t *b, int n) {
 
 #ifndef TEST
 int main(void) {
-    printf("square_u16(300)   = %u\n", square_u16(300));
-    printf("square_u16(65535) = %u\n", square_u16(65535));
+    printf("square_u16(300)   = %" PRIu32 "\n", square_u16(300));
+    printf("square_u16(65535) = %" PRIu32 "\n", square_u16(65535));
 
     uint16_t a[3] = {1000, 2000, 65535};
     uint16_t b[3] = {1000, 2000, 65535};
-    printf("dot_u16           = %u\n", dot_u16(a, b, 3));
+    printf("dot_u16           = %" PRIu32 "\n", dot_u16(a, b, 3));
 
     return 0;
 }

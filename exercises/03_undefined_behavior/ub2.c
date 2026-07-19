@@ -1,11 +1,12 @@
-// ub2.c - Sequence points and unsequenced side effects
+// ub2.c - Unsequenced side effects
 //
-// Between two sequence points, C allows an object to be modified at most
-// once -- and if it is modified, its old value may only be read to compute
-// the new one (C11 6.5p2). Expressions like `x = x++` or `dst[i] = src[i++]`
-// break that rule: the read and the increment are UNSEQUENCED, and the
-// behavior is undefined. The same compiler can legally produce different
-// results at different optimization levels.
+// In C11, behavior is undefined when a side effect on a scalar object
+// is unsequenced relative to another side effect on the same object,
+// or relative to a value computation that reads its value (C11 6.5p2).
+// Expressions like `x = x++` or `dst[i] = src[i++]` do exactly that:
+// the increment of i is unsequenced relative to another use of i.
+// The same compiler can legally produce different results at different
+// optimization levels.
 //
 // gcc and clang diagnose these patterns with -Wall, and clings compiles
 // with -Werror, so this file does not even build until each expression
@@ -14,23 +15,24 @@
 #include <stdio.h>
 
 // Fills arr[0..n-1] with start, start+1, start+2, ...
-// TODO: `arr[i++] = start + i` modifies i and reads it in the same
-// expression with no sequence point in between. Split the store and
-// the increment into separate statements.
+// TODO: in `arr[i++] = start + i` the increment of i is unsequenced
+// relative to the read of i in `start + i`. Split the store and the
+// increment into separate statements.
 void fill_sequence(int *arr, int n, int start) {
     int i = 0;
     while (i < n) {
-        arr[i++] = start + i;  // BUG: unsequenced write and read of i
+        arr[i++] = start + i;  // BUG: unsequenced update and read of i
     }
 }
 
 // Copies src[0..n-1] into dst[0..n-1].
 // TODO: same disease, different expression. Which i does dst[i] use,
-// the old one or the incremented one? Neither: it's undefined.
+// the old one or the incremented one? Neither is guaranteed: the two
+// uses are unsequenced, so the behavior is undefined.
 void copy_ints(const int *src, int *dst, int n) {
     int i = 0;
     while (i < n) {
-        dst[i] = src[i++];  // BUG: unsequenced write and read of i
+        dst[i] = src[i++];  // BUG: unsequenced update and read of i
     }
 }
 

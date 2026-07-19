@@ -70,16 +70,19 @@ TEST(test_empty_name) {
 }
 
 TEST(test_long_name) {
-    /* Longer than any fixed small buffer: the allocation must be sized
-     * to the actual greeting. */
-    char name[200];
-    memset(name, 'x', sizeof(name) - 1);
-    name[sizeof(name) - 1] = '\0';
+    /* 32 KiB of name: far beyond any plausible fixed-size buffer, so
+     * the allocation must be sized to the actual greeting. */
+    size_t name_len = 32u * 1024u;
+    char *name = malloc(name_len + 1);
+    ASSERT(name != NULL);
+    memset(name, 'x', name_len);
+    name[name_len] = '\0';
 
     char *g = make_greeting(name);
     ASSERT(g != NULL);
-    ASSERT_EQ(strlen(g), strlen("Hello, !") + strlen(name));
+    ASSERT_EQ(strlen(g), strlen("Hello, !") + name_len);
     free(g);
+    free(name);
 }
 
 int main(void) {
