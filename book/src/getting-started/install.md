@@ -1,15 +1,17 @@
 # Install
 
-clings is two things: the `clings` binary (the runner) and this repository (the
-exercises). You always need the repository — that is where the exercises live
-and where your progress is kept. Pick whichever route gets you the binary.
+The `clings` binary carries the whole course: install it, run `clings
+init`, and you have a private workspace with every exercise — no git,
+no clone. (Contributors still work from the repository; see
+[Contributing](../guides/contributing.md).) Pick whichever route gets
+you the binary.
 
 ## Prerequisites
 
 - **gcc and/or clang** with C11 support — the exercises are compiled with your
   system toolchain.
-- **git** — to clone the exercises.
-- **A Rust toolchain** — only if you build the binary from source.
+- **git and a Rust toolchain** — only to contribute or build the binary
+  from source; learning needs neither.
 
 ## Option 1 — Homebrew (macOS, Linux)
 
@@ -102,5 +104,5 @@ cargo uninstall clings           # built from source
 ```
 
 Everything else — your progress, `my_exercises/`, revealed solutions — lives
-inside the cloned repository. Delete the `clings` directory and no trace is
+inside your workspace (or clone). Delete that directory and no trace is
 left.
