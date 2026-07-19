@@ -92,6 +92,13 @@ plain malloc/realloc; in TEST builds a test can arm the next allocation
 to fail with `clings_fail_next_alloc()` and assert the failure branch
 deterministically (see `memory2`, `structs2`, `function_pointers2`).
 
+### Stand-alone exercises
+
+Exercises must stand alone: solving one never requires code or concepts
+built in another, and every exercise — including the implementation
+track's — must be useful to someone who will never build an interpreter
+(see the editorial rule in [VISION.md](VISION.md)).
+
 ### The exercise invariant
 
 Every exercise must **fail** verification as shipped, and every solution

@@ -1,8 +1,8 @@
 # Vision
 
 **clings wants to become the reference hands-on path from "I know C syntax"
-to "I write C I can defend in a code review" — with a destination: the C
-that real language implementations are made of.**
+to "I write C I can defend in a code review" — increasingly through the
+problems found in language implementations and binary formats.**
 
 C is taught everywhere, but almost always up to the point where programs
 *compile*. The hard part of the language starts after that: undefined
@@ -45,17 +45,24 @@ These are the non-negotiables that every future change must respect:
 
 ### The direction — the C of language implementations
 
-clings is doubling down on a specific destination: **the C you need to
-build interpreters, compilers and binary formats**. That domain is the
-perfect gymnasium for hard C — tagged unions, hash tables, arenas,
-garbage collectors, bytecode — all pure C11, all userspace, all
-territory where sanitizers shine. And it is underserved: the canonical
-book on the subject famously tells readers who aren't comfortable with
-C yet to go read an introductory book and come back. clings wants to be
-what they come back to.
+clings is developing a focused implementation track around the C used
+in interpreters, compilers, and binary formats. That domain covers much
+of hard C — tagged unions, hash tables, arenas, garbage collectors,
+bytecode — in pure C11, entirely in userspace, where sanitizers give
+direct feedback. It also addresses a documented gap: the standard book
+on the subject advises readers who are not yet comfortable with C to
+work through an introductory book first and come back.
 
-The general advanced-C curriculum is not going anywhere: it is the
-foundations tier the implementation track stands on.
+The general advanced-C curriculum stays as it is: it is the foundations
+tier the implementation track builds on.
+
+One editorial rule keeps clings a C trainer rather than an interpreter
+tutorial in exercise form: **every exercise must be useful to someone
+who will never build an interpreter**. Endian-safe I/O belongs in any
+protocol; a defensive varint decoder is any parser; an arena is a
+lifetime strategy; a GC is a graph traversal over owned memory.
+Exercises stand alone — they never require the artifacts of previous
+chapters.
 
 ### Near term — the implementation track
 
