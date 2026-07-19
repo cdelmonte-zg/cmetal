@@ -13,3 +13,6 @@ solutions/**/*.c
 
 # Python bytecode (scripts/)
 __pycache__/
+
+# local assistant settings, never to be committed
+.claude/

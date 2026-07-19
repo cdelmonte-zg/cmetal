@@ -56,5 +56,6 @@ system. It assumes you know C syntax and want to get good at the parts that
 bite. It is a sharp tool for one job: deliberate practice on advanced C. Where
 that line moves next is tracked in the [roadmap](project/roadmap.md).
 
-The CLI is written in Rust for a fast, cross-platform experience; the exercises
-are pure C11.
+The CLI is written in Rust for a fast experience on Linux and macOS; the
+exercises are pure C11. (On Windows, use WSL: native toolchains lack the
+sanitizers the exercises rely on.)

@@ -16,7 +16,9 @@
 Inspired by [rustlings](https://github.com/rust-lang/rustlings) --
 fix broken C code, learn by doing.
 
-The CLI is written in Rust for a fast, cross-platform experience;
+The CLI is written in Rust for a fast experience on Linux and macOS
+(on Windows, use WSL: native toolchains lack the sanitizers the
+exercises rely on);
 the exercises are pure C11.
 
 📖 **[Documentation](https://cdelmonte-zg.github.io/cmetal/)** — install,
