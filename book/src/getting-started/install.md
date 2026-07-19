@@ -66,15 +66,8 @@ that is where you work. Head to the [Quickstart](quickstart.md).
 
 ## Upgrade
 
-Update the exercises (your work in `my_exercises/` is never overwritten; new
-exercises appear on the next run):
-
-```bash
-cd clings
-git pull
-```
-
-Then update the binary, matching how you installed it:
+New exercises ship with the binary. Upgrade it, matching how you
+installed it:
 
 ```bash
 brew upgrade clings              # Homebrew
@@ -84,6 +77,19 @@ cargo install --path . --force   # built from source
 If you installed a prebuilt binary, download the new archive from the
 [latest release](https://github.com/cdelmonte-zg/clings/releases/latest) and
 replace `/usr/local/bin/clings` the same way you installed it.
+
+Then bring your workspace up to date with the curriculum embedded in
+the new binary:
+
+```bash
+cd my-clings-course
+clings update
+```
+
+`update` never overwrites work you have edited: untouched working
+copies are refreshed, edited ones are kept and reported — compare with
+`clings diff <name>` or take the new version with `clings reset <name>`.
+(In a git checkout, update with `git pull` instead.)
 
 ## Uninstall
 

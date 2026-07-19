@@ -36,8 +36,8 @@ the watch-mode loop, the curriculum, and how verification works.
 ## Prerequisites
 
 - **gcc** and/or **clang** (C11 support required)
-- **git** to clone this repository (the exercises live here)
-- **Rust toolchain** — only if you build from source (option 3 below)
+- **git** and the **Rust toolchain** — only to contribute or build from
+  source (option 3 below); learning needs neither
 
 ## Install
 
@@ -89,15 +89,8 @@ way to contribute exercises or follow unreleased changes; for learning,
 
 ## Upgrade
 
-Update the exercises (your work in `my_exercises/` is never overwritten;
-newly added exercises appear on the next run):
-
-```bash
-cd clings
-git pull
-```
-
-Then update the binary, matching how you installed it:
+New exercises ship with the binary. Upgrade it, matching how you
+installed it:
 
 ```bash
 brew upgrade clings              # Homebrew
@@ -107,6 +100,18 @@ cargo install --path . --force   # built from source
 If you installed a prebuilt binary, download the new archive from the
 [latest release](https://github.com/cdelmonte-zg/clings/releases/latest)
 and replace `/usr/local/bin/clings` the same way you installed it.
+
+Then reconcile your workspace with the new curriculum:
+
+```bash
+cd my-clings-course
+clings update
+```
+
+`update` never overwrites work you have edited: untouched working
+copies are refreshed, edited ones are kept and reported — compare with
+`clings diff <name>` or take the new version with `clings reset <name>`.
+(In a git checkout, update with `git pull` instead.)
 
 ## Uninstall
 
@@ -119,8 +124,8 @@ cargo uninstall clings           # built from source
 ```
 
 Everything else — your progress, `my_exercises/`, revealed solutions —
-lives inside the cloned repository: delete the `clings` directory and
-no trace is left.
+lives inside your workspace (or clone): delete that directory and no
+trace is left.
 
 ## Getting started
 
@@ -128,15 +133,14 @@ no trace is left.
 
 ```bash
 brew install cdelmonte-zg/tap/clings      # or any install option above
-git clone https://github.com/cdelmonte-zg/clings.git
-cd clings
+clings init my-clings-course
+cd my-clings-course
 clings
 ```
 
 On first run clings copies the exercises into `my_exercises/` — that's
-where you work. The directory is gitignored, so the pristine exercises
-in `exercises/` stay untouched and your progress never ends up in a
-commit.
+where you work; the pristine exercises in `exercises/` stay untouched.
+(A git clone of this repository works exactly the same way.)
 
 Each exercise has a bug or a `TODO` for you to fix: open the `.c` file
 under `my_exercises/` in your editor, save your changes, and clings
@@ -147,7 +151,7 @@ obfuscated — no accidental spoilers while browsing the repo).
 
 ### I'm coming back after a break
 
-Just run `clings` again from the repo — progress persists across
+Just run `clings` again from your workspace — progress persists across
 sessions. `clings list` shows where you left off, `clings solution
 <name>` re-opens any solution you've already earned, and `clings reset`
 wipes progress and restores the pristine exercises if you want to start
@@ -181,12 +185,14 @@ python3 scripts/check_exercises.py          # the invariant gatekeeper
 
 ```bash
 clings init [dir]            # create a self-contained workspace
+clings update                # sync workspace with the binary's curriculum
+clings diff <name>           # your working copy vs the pristine exercise
 clings run <name>            # run a specific exercise
 clings hint <name> --level 2 # show first 2 hints
 clings solution <name>       # reveal the solution (once solved)
 clings list                  # list exercises and progress
 clings verify                # verify all exercises
-clings reset                 # clear progress, restore pristine exercises
+clings reset [name]          # all: clear progress; one: restore its file
 ```
 
 ---

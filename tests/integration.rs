@@ -522,6 +522,153 @@ fn cli_init_creates_selfcontained_workspace() {
 }
 
 #[test]
+fn cli_update_reconciles_workspace() {
+    let tmp = TempDir::new().unwrap();
+    let ws = tmp.path().join("course");
+    let output = Command::new(clings_bin())
+        .arg("init")
+        .arg(&ws)
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    let pristine_intro = ws.join("exercises/00_intro/intro1.c");
+    let pristine_p1 = ws.join("exercises/01_pointers/pointers1.c");
+    let embedded_intro = std::fs::read_to_string(&pristine_intro).unwrap();
+    let embedded_p1 = std::fs::read_to_string(&pristine_p1).unwrap();
+
+    // Simulate an OLDER curriculum than the embedded one:
+    // - intro1 differed upstream, learner copy untouched (== old pristine)
+    let old_intro = format!("{embedded_intro}\n// old curriculum\n");
+    std::fs::write(&pristine_intro, &old_intro).unwrap();
+    std::fs::create_dir_all(ws.join("my_exercises/00_intro")).unwrap();
+    std::fs::write(ws.join("my_exercises/00_intro/intro1.c"), &old_intro).unwrap();
+    // - pointers1 differed upstream, learner copy has real edits
+    std::fs::write(&pristine_p1, format!("{embedded_p1}\n// old\n")).unwrap();
+    std::fs::create_dir_all(ws.join("my_exercises/01_pointers")).unwrap();
+    std::fs::write(
+        ws.join("my_exercises/01_pointers/pointers1.c"),
+        "// my work\n",
+    )
+    .unwrap();
+    // - bitwise3 did not exist in the old curriculum
+    std::fs::remove_file(ws.join("exercises/11_bitwise/bitwise3.c")).unwrap();
+
+    let output = Command::new(clings_bin())
+        .arg("update")
+        .current_dir(&ws)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "update failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Pristine curriculum fully replaced by the embedded one
+    assert_eq!(
+        std::fs::read_to_string(&pristine_intro).unwrap(),
+        embedded_intro
+    );
+    assert_eq!(std::fs::read_to_string(&pristine_p1).unwrap(), embedded_p1);
+    assert!(ws.join("exercises/11_bitwise/bitwise3.c").exists());
+    // Untouched working copy refreshed to the new pristine version
+    assert_eq!(
+        std::fs::read_to_string(ws.join("my_exercises/00_intro/intro1.c")).unwrap(),
+        embedded_intro
+    );
+    // Edited working copy kept, and reported
+    assert_eq!(
+        std::fs::read_to_string(ws.join("my_exercises/01_pointers/pointers1.c")).unwrap(),
+        "// my work\n"
+    );
+    assert!(stdout.contains("pointers1"), "kept edits must be reported");
+    assert!(
+        stdout.contains("bitwise3"),
+        "new exercises must be reported"
+    );
+    // No staging/backup leftovers
+    assert!(!ws.join(".clings/staging").exists());
+    assert!(!ws.join(".clings/backup").exists());
+
+    // In a git-checkout-like directory (no manifest) update must refuse
+    std::fs::remove_file(ws.join(".clings/manifest.json")).unwrap();
+    let output = Command::new(clings_bin())
+        .arg("update")
+        .current_dir(&ws)
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "update must require a manifest");
+}
+
+#[test]
+fn cli_diff_and_reset_single_exercise() {
+    if !has_gcc() {
+        eprintln!("skipping: gcc not available");
+        return;
+    }
+
+    let tmp = TempDir::new().unwrap();
+    let ws = tmp.path().join("course");
+    let output = Command::new(clings_bin())
+        .arg("init")
+        .arg(&ws)
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    // Learner edits their copy of intro1
+    std::fs::create_dir_all(ws.join("my_exercises/00_intro")).unwrap();
+    std::fs::write(
+        ws.join("my_exercises/00_intro/intro1.c"),
+        "// edited by me\nint main(void) { return 1; }\n",
+    )
+    .unwrap();
+
+    let output = Command::new(clings_bin())
+        .args(["diff", "intro1"])
+        .current_dir(&ws)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("+// edited by me") && stdout.contains("yours"),
+        "diff must show the learner's changes, got:\n{stdout}"
+    );
+
+    let output = Command::new(clings_bin())
+        .args(["reset", "intro1"])
+        .current_dir(&ws)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "reset <name> failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        std::fs::read_to_string(ws.join("my_exercises/00_intro/intro1.c")).unwrap(),
+        std::fs::read_to_string(ws.join("exercises/00_intro/intro1.c")).unwrap()
+    );
+
+    let output = Command::new(clings_bin())
+        .args(["diff", "intro1"])
+        .current_dir(&ws)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("identical"),
+        "after reset the diff must be empty, got:\n{stdout}"
+    );
+}
+
+#[test]
 fn cli_hint_shows_hint_text() {
     if !has_gcc() {
         eprintln!("skipping: gcc not available");
