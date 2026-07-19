@@ -1,6 +1,6 @@
 [package]
 name = "cmetal"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 description = "Small exercises to learn advanced C concepts - inspired by rustlings"
 license = "MIT"
