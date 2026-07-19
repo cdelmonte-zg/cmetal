@@ -176,6 +176,79 @@ Only compute *result = a + b after both checks pass.
 """,
 ]
 
+[[exercises]]
+name = "ub2"
+dir = "03_undefined_behavior"
+test = true
+sanitizers = false
+hints = [
+  """
+Modifying a variable and reading it again in the same expression,
+with no sequence point in between, is undefined behavior (C11 6.5p2).
+gcc and clang spot these patterns with -Wall; -Werror makes the build fail.
+""",
+  """
+In arr[i++] = start + i: is the i on the right the old value or the
+incremented one? The standard says neither — the whole expression is UB.
+Give the increment its own statement.
+""",
+  """
+A for loop does exactly what you need — every read of i is sequenced
+after the previous write:
+  for (int i = 0; i < n; i++) arr[i] = start + i;
+Same shape for copy_ints: dst[i] = src[i];
+""",
+]
+
+[[exercises]]
+name = "ub3"
+dir = "03_undefined_behavior"
+test = true
+sanitizers = true
+hints = [
+  """
+What type does a uint16_t * uint16_t multiplication happen in?
+Not uint16_t: anything narrower than int is promoted first —
+to SIGNED int (C11 6.3.1.1).
+""",
+  """
+0xFFFF * 0xFFFF = 4294836225, but INT_MAX is 2147483647.
+The promoted multiplication overflows signed int — UB — even though
+every declared type is unsigned. That's what UBSan is reporting.
+""",
+  """
+Cast one operand before multiplying, so the conversions go to uint32_t:
+  return (uint32_t)x * x;
+And in dot_u16:
+  sum += (uint32_t)a[i] * b[i];
+""",
+]
+
+[[exercises]]
+name = "ub4"
+dir = "03_undefined_behavior"
+test = true
+sanitizers = true
+hints = [
+  """
+buf lives on the stack and dies when make_greeting returns.
+The caller receives a pointer to storage that no longer exists —
+that's why the compiler refuses to build this (-Wreturn-local-addr).
+""",
+  """
+The storage must outlive the function: allocate it with malloc().
+A static buffer is NOT enough — every call would share the same bytes
+(see test_two_calls_are_independent). The caller already free()s.
+""",
+  """
+snprintf(NULL, 0, ...) returns the formatted length without writing:
+  int needed = snprintf(NULL, 0, "Hello, %s!", name);
+  char *buf = malloc((size_t)needed + 1);
+  if (buf) snprintf(buf, (size_t)needed + 1, "Hello, %s!", name);
+  return buf;
+""",
+]
+
 # ── 04: Preprocessor ─────────────────────────────────────
 
 [[exercises]]
