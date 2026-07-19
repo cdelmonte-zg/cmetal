@@ -7,6 +7,13 @@
 // Fix the next_power_of_two(), highest_set_bit(), and swap_nibbles() functions.
 
 #include <stdio.h>
+#include <limits.h>
+
+// The bit-smearing in next_power_of_two (n |= n >> 16 as the last
+// step) and the tests assume 32-bit unsigned int — an ABI fact, not
+// a C guarantee. The assert makes the assumption explicit.
+_Static_assert(UINT_MAX == 0xFFFFFFFFu,
+               "bitwise3 assumes 32-bit unsigned int");
 
 // next_power_of_two: return the smallest power of 2 that is >= n.
 // Uses the bit-smearing trick: spread the highest set bit to fill all

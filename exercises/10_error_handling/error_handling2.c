@@ -20,6 +20,12 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
+
+/* parse_int's limit arithmetic and the INT_MIN boundary test assume a
+ * 32-bit two's-complement int, per project convention (see ub3). */
+_Static_assert(INT_MAX == 2147483647 && INT_MIN == (-2147483647 - 1),
+               "error_handling2 requires a 32-bit two's-complement int");
 
 // Helper: returns 1 if s contains only digits (with optional leading '-'), 0 otherwise
 static int is_valid_int(const char *s, int len) {
@@ -35,19 +41,35 @@ static int is_valid_int(const char *s, int len) {
     return 1;
 }
 
-// Helper: simple string-to-int (no error checking — caller uses is_valid_int first)
-static int parse_int(const char *s, int len) {
-    int result = 0;
-    int negative = 0;
-    int start = 0;
-    if (s[0] == '-') {
-        negative = 1;
-        start = 1;
-    }
+// Helper: string-to-int with RANGE checking (digit validation is
+// is_valid_int's job). Returns 0 and stores the value through out, or
+// -1 if the number does not fit in an int. Writes *out only on success.
+//
+// The overflow check happens BEFORE each multiply-add, in unsigned
+// arithmetic: checking after the operation would itself be UB once the
+// accumulator overflows — no matter how wide the accumulator, a long
+// enough digit string overflows it.
+static int parse_int(const char *s, int len, int *out) {
+    unsigned int result = 0;
+    int negative = s[0] == '-';
+    int start = negative ? 1 : 0;
+    /* |INT_MIN| is one more than INT_MAX on two's complement */
+    unsigned int limit = negative ? (unsigned int)INT_MAX + 1u
+                                  : (unsigned int)INT_MAX;
     for (int i = start; i < len; i++) {
-        result = result * 10 + (s[i] - '0');
+        unsigned int digit = (unsigned int)(s[i] - '0');
+        if (result > (limit - digit) / 10u) {
+            return -1;  /* result * 10 + digit would exceed the limit */
+        }
+        result = result * 10u + digit;
     }
-    return negative ? -result : result;
+    if (negative) {
+        *out = result == (unsigned int)INT_MAX + 1u ? INT_MIN
+                                                    : -(int)result;
+    } else {
+        *out = (int)result;
+    }
+    return 0;
 }
 
 int read_pair(const char *input, int *a, int *b) {
@@ -71,12 +93,12 @@ int read_pair(const char *input, int *a, int *b) {
     // BUG: Calls is_valid_int but ignores the result!
     // Should return -3 if the first number is invalid.
     is_valid_int(input, first_len);
-    *a = parse_int(input, first_len);
+    if (parse_int(input, first_len, a) != 0) return -3;  /* range check */
 
     // BUG: Same problem — ignores validation result.
     // Should return -4 if the second number is invalid.
     is_valid_int(comma + 1, second_len);
-    *b = parse_int(comma + 1, second_len);
+    if (parse_int(comma + 1, second_len, b) != 0) return -4;  /* range check */
 
     return 0;
 }
@@ -176,6 +198,34 @@ TEST(test_invalid_second_number) {
     ASSERT_EQ(b, 99);
 }
 
+TEST(test_number_too_big_for_int) {
+    int a = 99, b = 99;
+    /* 10 digits: all digits (passes is_valid_int), but does not fit in
+     * an int — parsing must fail cleanly instead of overflowing. */
+    int err = read_pair("9999999999,1", &a, &b);
+    ASSERT_EQ(err, -3);
+    ASSERT_EQ(a, 99);
+    ASSERT_EQ(b, 99);
+}
+
+TEST(test_extremely_large_first_number) {
+    int a = 99, b = 99;
+    /* Long enough to overflow ANY fixed-width accumulator: the range
+     * check must reject it before the arithmetic, not after. */
+    int err = read_pair(
+        "999999999999999999999999999999999999999999999999,1", &a, &b);
+    ASSERT_EQ(err, -3);
+    ASSERT_EQ(a, 99);
+    ASSERT_EQ(b, 99);
+}
+
+TEST(test_int_boundaries) {
+    int a = 0, b = 0;
+    ASSERT_EQ(read_pair("2147483647,-2147483648", &a, &b), 0);
+    ASSERT_EQ(a, INT_MAX);
+    ASSERT_EQ(b, INT_MIN);
+}
+
 TEST(test_empty_before_comma) {
     int a = 99, b = 99;
     int err = read_pair(",5", &a, &b);
@@ -202,6 +252,9 @@ int main(void) {
     RUN_TEST(test_missing_comma);
     RUN_TEST(test_invalid_first_number);
     RUN_TEST(test_invalid_second_number);
+    RUN_TEST(test_number_too_big_for_int);
+    RUN_TEST(test_extremely_large_first_number);
+    RUN_TEST(test_int_boundaries);
     RUN_TEST(test_empty_before_comma);
     RUN_TEST(test_empty_after_comma);
     TEST_REPORT();

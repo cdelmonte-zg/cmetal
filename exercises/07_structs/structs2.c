@@ -5,7 +5,9 @@
 // the struct fields directly. This is C's version of encapsulation.
 //
 // Implement a stack of ints using a dynamic array internally.
-// Fix the bugs in stack_push() and stack_pop().
+// Fix the bugs in stack_push() and stack_pop(). Part of the fix is the
+// CONTRACT of stack_push: growth can fail, so push must return int —
+// 0 on success, -1 when growing fails (leaving the stack untouched).
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,6 +31,12 @@ Stack *stack_create(int capacity) {
     return s;
 }
 
+// TODO: change the contract to
+//     int stack_push(Stack *s, int value);
+// returning 0 on success and -1 when growing fails, leaving the stack
+// untouched. Note: a changed signature ripples to every call site —
+// the demo and the tests below are already written against the new
+// contract, so this file won't compile until the function catches up.
 void stack_push(Stack *s, int value) {
     if (s->top >= s->capacity) {
         s->capacity *= 2;
@@ -36,8 +44,8 @@ void stack_push(Stack *s, int value) {
         // If realloc fails, the original pointer is lost (memory leak)
         // and s->data becomes NULL, causing a crash on the next write.
         //
-        // TODO: Use a temporary pointer to hold the realloc result.
-        // Only update s->data if realloc succeeded.
+        // TODO: Use a temporary pointer, and return -1 without touching
+        // the stack if the allocation failed.
         s->data = realloc(s->data, sizeof(int) * (size_t)s->capacity);
     }
     s->data[s->top] = value;
@@ -72,9 +80,12 @@ void stack_destroy(Stack *s) {
 #ifndef TEST
 int main(void) {
     Stack *s = stack_create(4);
-    stack_push(s, 10);
-    stack_push(s, 20);
-    stack_push(s, 30);
+    if (stack_push(s, 10) != 0 || stack_push(s, 20) != 0 ||
+        stack_push(s, 30) != 0) {
+        printf("Push failed!\n");
+        stack_destroy(s);
+        return 1;
+    }
 
     printf("size: %d\n", stack_size(s));
     printf("peek: %d\n", stack_peek(s));
@@ -97,9 +108,9 @@ TEST(test_create_and_destroy) {
 
 TEST(test_push_pop) {
     Stack *s = stack_create(4);
-    stack_push(s, 10);
-    stack_push(s, 20);
-    stack_push(s, 30);
+    ASSERT_EQ(stack_push(s, 10), 0);
+    ASSERT_EQ(stack_push(s, 20), 0);
+    ASSERT_EQ(stack_push(s, 30), 0);
     ASSERT_EQ(stack_size(s), 3);
     ASSERT_EQ(stack_pop(s), 30);
     ASSERT_EQ(stack_pop(s), 20);
@@ -111,7 +122,7 @@ TEST(test_push_pop) {
 TEST(test_peek) {
     Stack *s = stack_create(4);
     ASSERT_EQ(stack_peek(s), -1);
-    stack_push(s, 42);
+    ASSERT_EQ(stack_push(s, 42), 0);
     ASSERT_EQ(stack_peek(s), 42);
     ASSERT_EQ(stack_size(s), 1);
     stack_destroy(s);
@@ -127,15 +138,21 @@ TEST(test_empty_pop) {
 
 TEST(test_growth) {
     Stack *s = stack_create(2);
-    // Push more than initial capacity to trigger realloc
+    // Push more than initial capacity to trigger realloc;
+    // growth must be reported as success.
     for (int i = 0; i < 20; i++) {
-        stack_push(s, i * 10);
+        ASSERT_EQ(stack_push(s, i * 10), 0);
     }
     ASSERT_EQ(stack_size(s), 20);
     ASSERT_EQ(stack_pop(s), 190);
     ASSERT_EQ(stack_pop(s), 180);
     stack_destroy(s);
 }
+
+/* Note: the failure branch of the contract (realloc returning NULL,
+ * push returning -1 with the stack untouched) is NOT exercised by
+ * these tests — forcing an allocation failure deterministically would
+ * need an injectable allocator. The contract still requires it. */
 
 int main(void) {
     RUN_TEST(test_create_and_destroy);

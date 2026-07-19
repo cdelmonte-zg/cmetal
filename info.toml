@@ -170,7 +170,9 @@ exactly what test_double_destroy_is_safe checks.
 name = "ub1"
 dir = "03_undefined_behavior"
 test = true
-sanitizers = false
+# The demo adds INT_MAX + 1: any "fix" that still performs the overflowing
+# addition (however clever the post-hoc check) is caught by UBSan here.
+sanitizers = true
 hints = [
   """
 Signed integer overflow is undefined behavior in C.
@@ -284,8 +286,12 @@ The ## operator concatenates two tokens:
   CONCAT(foo, bar)  // becomes foobar
 """,
   """
-For DEBUG_VAR, use STRINGIFY to get the variable name as a string:
-  #define DEBUG_VAR(var) printf("%s = %d\\n", STRINGIFY(var), var)
+For FORMAT_VAR, use STRINGIFY to get the variable name as a string:
+  #define FORMAT_VAR(buf, size, var) \\
+      snprintf(buf, size, "%s = %d", STRINGIFY(var), var)
+Note the trap: "var" in quotes is already a string literal — the
+preprocessor does NOT expand macro parameters inside string literals,
+which is exactly why the # operator exists.
 """,
 ]
 
@@ -522,7 +528,10 @@ The test checks that stack_pop on an empty stack returns a sentinel.
 """,
   """
 In stack_push(), when the array is full, double the capacity with realloc.
-Use a temporary pointer to avoid losing data if realloc fails.
+Use a temporary pointer to avoid losing data if realloc fails — and make
+the failure part of the contract: stack_push returns int (0 on success,
+-1 on failure, stack untouched). The demo and the tests already call the
+new signature; update capacity only after realloc succeeds.
 """,
 ]
 

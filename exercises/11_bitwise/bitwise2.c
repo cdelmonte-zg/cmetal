@@ -23,6 +23,9 @@ void unpack_rgb(uint32_t color, uint8_t *r, uint8_t *g, uint8_t *b) {
 }
 
 // extract_bits: extract `count` bits starting at bit position `start`.
+// Precondition: 0 < count < 32. With count == 32 the mask expression
+// would shift by the full width of the type — undefined behavior in C
+// (C11 6.5.7p3) — so full-word extraction is outside this contract.
 // For example, extract_bits(0xABCD, 4, 8) should return 0xBC.
 // BUG: The mask calculation is wrong.
 uint32_t extract_bits(uint32_t value, int start, int count) {

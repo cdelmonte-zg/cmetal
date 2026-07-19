@@ -7,9 +7,14 @@
 //   - config_describe: formats a description into a caller-provided buffer
 //   - config_destroy: frees the config
 //
-// BUG 1: config_create doesn't make its own copy of the title string,
-//         so it holds a dangling pointer if the caller's string goes away.
-// BUG 2: config_describe accidentally modifies the config struct.
+// BUG 1: config_create doesn't copy the whole title into the struct's
+//         buffer — and the copy must be BOUNDED: titles longer than the
+//         buffer are truncated, never overflowed (see the long-title
+//         test and the sanitizer run of the demo).
+// BUG 2: config_describe accidentally modifies the config struct and
+//         takes a non-const pointer. The tests describe a config
+//         through a `const struct config *`, so the signature must
+//         become const — this IS part of the contract.
 // Fix both bugs!
 
 #include <stdio.h>
@@ -68,6 +73,16 @@ int main(void) {
     printf("Width: %d, Height: %d\n", config_width(cfg), config_height(cfg));
 
     config_destroy(cfg);
+
+    /* A title longer than the struct's buffer must be truncated, never
+     * overflowed — the sanitizer run exercises this path. */
+    char long_title[200];
+    memset(long_title, 'T', sizeof(long_title) - 1);
+    long_title[sizeof(long_title) - 1] = '\0';
+    struct config *big = config_create(1, 2, long_title);
+    if (!big) return 1;
+    printf("long title stored: %zu chars\n", strlen(big->title));
+    config_destroy(big);
     return 0;
 }
 #else
@@ -111,6 +126,31 @@ TEST(test_config_describe_does_not_modify) {
     config_destroy(c);
 }
 
+TEST(test_describe_accepts_const_config) {
+    /* A read-only view of the config must be describable: this forces
+     * config_describe to take a const struct config *. */
+    struct config *c = config_create(10, 20, "RO");
+    const struct config *view = c;
+    char buf[128];
+    config_describe(view, buf, sizeof(buf));
+    ASSERT_STR_EQ(buf, "RO: 10x20");
+    config_destroy(c);
+}
+
+TEST(test_config_long_title_truncated) {
+    /* The title buffer is 64 bytes: a 199-char title must be cut to 63
+     * chars + NUL, not written past the end of the struct. */
+    char long_title[200];
+    memset(long_title, 'T', sizeof(long_title) - 1);
+    long_title[sizeof(long_title) - 1] = '\0';
+    struct config *c = config_create(1, 2, long_title);
+    ASSERT(c != NULL);
+    char buf[300];
+    config_describe(c, buf, sizeof(buf));
+    ASSERT_EQ(strlen(buf), 63u + strlen(": 1x2"));
+    config_destroy(c);
+}
+
 TEST(test_config_small_buffer) {
     struct config *c = config_create(1920, 1080, "Main");
     char buf[8];
@@ -125,6 +165,8 @@ int main(void) {
     RUN_TEST(test_config_title_copied);
     RUN_TEST(test_config_describe_format);
     RUN_TEST(test_config_describe_does_not_modify);
+    RUN_TEST(test_describe_accepts_const_config);
+    RUN_TEST(test_config_long_title_truncated);
     RUN_TEST(test_config_small_buffer);
     TEST_REPORT();
 }

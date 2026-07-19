@@ -94,8 +94,18 @@ int main(void) {
     //     printf("Error %d: %s\n", err.code, err.message);
     // }
 
+
+    /* Long formatted messages must be truncated, never overflowed —
+     * the sanitizer run exercises this path. */
+    char big[600];
+    memset(big, 'x', sizeof(big) - 1);
+    big[sizeof(big) - 1] = '\0';
+    error_set(&err, 9, "%s", big);
+    printf("long message length: %zu\n", strlen(err.message));
+
     return 0;
 }
+
 #else
 #include "clings_test.h"
 
@@ -174,6 +184,17 @@ TEST(test_error_set_message) {
     ASSERT_STR_EQ(err.message, "failed at step 3: bad input");
 }
 
+TEST(test_error_set_long_message_truncated) {
+    struct error err;
+    char big[600];
+    memset(big, 'x', sizeof(big) - 1);
+    big[sizeof(big) - 1] = '\0';
+    error_set(&err, 7, "%s", big);
+    ASSERT_EQ(err.code, 7);
+    /* message[256]: vsnprintf keeps it to 255 chars + NUL */
+    ASSERT_EQ(strlen(err.message), sizeof(err.message) - 1);
+}
+
 TEST(test_error_clear) {
     struct error err;
     error_set(&err, 1, "some error");
@@ -191,6 +212,7 @@ int main(void) {
     RUN_TEST(test_parse_key_too_long);
     RUN_TEST(test_parse_value_too_long);
     RUN_TEST(test_error_set_message);
+    RUN_TEST(test_error_set_long_message_truncated);
     RUN_TEST(test_error_clear);
     TEST_REPORT();
 }
