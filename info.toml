@@ -1339,10 +1339,12 @@ arithmetic result stops being a double. You do not own every NaN.
 Second: look at what box_bool(true) collides with.
 """,
   """
-The boxed space must be a NaN subspace the hardware never produces:
-set one MORE mantissa bit. BOX_MASK = QNAN | (1 << 50) — now
-(v & BOX_MASK) == BOX_MASK is false for every arithmetic NaN, both
-signs included.
+The boxed space must be a NaN subspace the canonical NaNs stay out
+of: set one MORE mantissa bit. BOX_MASK = QNAN | (1 << 50) — now
+(v & BOX_MASK) == BOX_MASK is false for the NaNs invalid operations
+produce, both signs included. (Payload PROPAGATION means crafted NaN
+payloads stay outside the representable domain — the header says so
+explicitly; scoping the claim is part of the technique.)
 """,
   """
 box_bool should not build patterns arithmetically at all: return the
@@ -1392,10 +1394,11 @@ in the word as_ptr returns? The demo's crash is far from either —
 it dereferences the mangled pointer.
 """,
   """
-box_ptr needs no cut at all: current machines use at most 48 address
-bits, the tag occupies the top bits, so PTR_TAG | (uintptr_t)p keeps
-the whole address. The synthetic-address test uses payload bits
-above 32 precisely to catch the truncation.
+box_ptr needs no cut at all: the contract covers addresses that fit
+in the low 48 bits (mainstream user-space today), the tag occupies
+the top bits, so PTR_TAG | (uintptr_t)p keeps the whole address. The
+synthetic-address test uses payload bits above 32 precisely to catch
+the truncation.
 """,
   """
 as_ptr must strip exactly what box_ptr added: (v & ~PTR_TAG). The

@@ -1,9 +1,14 @@
 // nanbox3.c - Boxing pointers: 48 bits, the sign bit, and the mask cut
 //
-// Current 64-bit machines use at most 48 bits of virtual address, so
-// a pointer fits in the NaN payload with room to spare. This encoding
-// tags pointers with sign bit + boxed space: a Value is a pointer iff
-// both are set.
+// On the mainstream configurations of today's 64-bit machines,
+// user-space addresses fit in the low 48 bits — so those pointers fit
+// in the NaN payload with room to spare. (Larger address spaces
+// exist: x86-64 five-level paging reaches 57 bits, and high-half
+// addresses would need sign extension, not zero-fill, to come back.
+// This encoding covers pointers whose uintptr_t representation fits
+// in the low 48 bits, and SAYS so — scoping the claim is part of the
+// technique.) A Value is a pointer iff sign bit + boxed space are
+// both set.
 //
 // Two bugs, both about respecting the payload:
 //
@@ -16,10 +21,11 @@
 //      dereferences it and dies far from the actual bug: a masking
 //      mistake at the encode/decode boundary.
 //
-// Contract: box_ptr/as_ptr round-trip any pointer (the address is
-// preserved bit-for-bit), is_ptr holds exactly for boxed pointers,
-// and doubles — including every hardware NaN, negative sign
-// included — are never classified as pointers.
+// Contract: box_ptr/as_ptr round-trip pointers whose uintptr_t
+// representation fits in the low 48 bits (the address is preserved
+// bit-for-bit), is_ptr holds exactly for boxed pointers, and doubles
+// in the representable domain — ordinary values and the canonical
+// NaNs, negative sign included — are never classified as pointers.
 //
 // (Editorial note: stuffing pointers into spare bits shows up in
 // handle tables, lock-free algorithms and file formats. The lessons —
@@ -34,6 +40,8 @@
 
 _Static_assert(sizeof(double) == 8, "this exercise assumes 64-bit doubles");
 _Static_assert(sizeof(void *) == 8, "this exercise assumes a 64-bit target");
+_Static_assert(UINTPTR_MAX == UINT64_MAX,
+               "this exercise assumes 64-bit uintptr_t");
 
 typedef uint64_t Value;
 
@@ -73,9 +81,9 @@ bool is_ptr(Value v) {
 }
 
 Value box_ptr(void *p) {
-    // BUG: truncates the address to its low 32 bits. A 64-bit
-    // pointer's payload is 48 bits wide — the mask must cover all of
-    // them (the tag occupies the top bits, so the full address fits).
+    // BUG: truncates the address to its low 32 bits. The contract
+    // covers 48 payload bits — the mask must cover all of them (the
+    // tag occupies the top bits, so a low-48-bit address fits whole).
     return PTR_TAG | ((uint64_t)(uintptr_t)p & 0xffffffff);
 }
 
@@ -129,18 +137,18 @@ TEST(test_heap_pointer_survives_boxing) {
 }
 
 TEST(test_full_48_bit_addresses_survive) {
-    // A synthetic address using the full 48-bit range: every payload
-    // bit must survive the round trip, not just the low 32.
+    // A synthetic address using the full 48-bit contract range: every
+    // payload bit must survive the round trip, not just the low 32.
     void *high = (void *)(uintptr_t)0x00007f12345678f0;
     Value v = box_ptr(high);
     ASSERT(is_ptr(v));
     ASSERT(as_ptr(v) == high);
 }
 
-TEST(test_doubles_are_never_pointers) {
+TEST(test_representable_doubles_are_never_pointers) {
     ASSERT(!is_ptr(box_double(3.25)));
     ASSERT(!is_ptr(box_double(-3.25)));
-    /* the hardware's NaNs, both signs: sign bit + quiet NaN is NOT
+    /* the canonical NaNs, both signs: sign bit + quiet NaN is NOT
      * enough to be a pointer — bit 50 makes the difference */
     ASSERT(!is_ptr(box_double(bits_to_double((uint64_t)0x7ff8000000000000))));
     ASSERT(!is_ptr(box_double(bits_to_double((uint64_t)0xfff8000000000000))));
@@ -154,7 +162,7 @@ int main(void) {
     RUN_TEST(test_pointer_round_trip);
     RUN_TEST(test_heap_pointer_survives_boxing);
     RUN_TEST(test_full_48_bit_addresses_survive);
-    RUN_TEST(test_doubles_are_never_pointers);
+    RUN_TEST(test_representable_doubles_are_never_pointers);
     TEST_REPORT();
 }
 #endif

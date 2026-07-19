@@ -44,8 +44,8 @@ static inline double bits_to_double(uint64_t b) {
     return d;
 }
 
-// The boxed space: quiet NaN plus mantissa bit 50, a pattern no
-// arithmetic produces (see nanbox1).
+// The boxed space: quiet NaN plus mantissa bit 50, a subspace the
+// canonical NaNs stay out of (see nanbox1 for the domain caveat).
 #define BOX_MASK ((uint64_t)0x7ffc000000000000)
 
 // Tag field: bits 48-49. Payload: bits 0-31.

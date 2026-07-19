@@ -7,20 +7,31 @@
 // value: the layout trick behind compact value slots.
 //
 // The catch this exercise is about: you do not own every NaN. The
-// hardware produces one too — 0.0/0.0 yields the quiet NaN, exponent
-// all ones plus the top mantissa bit (and on some CPUs the sign bit).
-// This encoding claims exactly that pattern as its boxed space, so an
-// ordinary arithmetic result gets misclassified as a boxed value.
-// The boxed space must be a NaN SUBSPACE no arithmetic ever produces:
-// set one more mantissa bit and the collision is gone.
+// hardware produces one too — 0.0/0.0 yields the CANONICAL quiet NaN,
+// exponent all ones plus the top mantissa bit (and on some CPUs the
+// sign bit). This encoding claims exactly that pattern as its boxed
+// space, so an ordinary arithmetic result gets misclassified as a
+// boxed value. The boxed space must be a NaN subspace DISTINCT from
+// the canonical NaNs those operations produce: set one more mantissa
+// bit and the collision is gone.
+//
+// One honest limit, shared by every NaN-boxing scheme: arithmetic can
+// PROPAGATE the payload of a NaN operand, so a crafted NaN carrying
+// bit 50 can flow through an operation and land in the boxed
+// subspace. Arbitrary NaN payloads are therefore OUTSIDE the
+// representable double domain — the domain is all non-NaN doubles
+// plus the canonical NaNs. Every encoding trades away something;
+// the skill is saying precisely what.
 //
 // Second bug, smaller but just as real: the boolean tags are built
 // with an off-by-one OR, so false lands on an unassigned pattern and
 // true lands on nil.
 //
-// Contract: every double — including every NaN the hardware can
-// produce — round-trips through box_double/as_double and satisfies
-// is_double. nil, false and true are three distinct non-double values.
+// Contract: every double in the representable domain — all non-NaN
+// doubles, plus the canonical NaNs invalid operations produce
+// (0.0/0.0, either sign bit) — round-trips through
+// box_double/as_double and satisfies is_double. nil, false and true
+// are three distinct non-double values.
 //
 // (Editorial note: packing type + payload into one word is how value
 // arrays, message slots and handle tables stay compact. Language
@@ -56,8 +67,8 @@ static inline double bits_to_double(uint64_t b) {
 
 // BUG: BOX_MASK claims EVERY quiet NaN as boxed space — but 0.0/0.0
 // produces exactly the pattern QNAN. The boxed space must set one
-// MORE mantissa bit (bit 50), so no arithmetic result ever lands in
-// it.
+// MORE mantissa bit (bit 50), a subspace the canonical NaNs stay out
+// of.
 #define BOX_MASK QNAN
 
 #define NIL_VAL   (BOX_MASK | 1)
@@ -138,15 +149,17 @@ TEST(test_doubles_round_trip) {
     }
 }
 
-TEST(test_hardware_nan_is_still_a_double) {
-    // 0.0/0.0 at runtime: the quiet NaN (sign bit set on some CPUs).
+TEST(test_canonical_nan_is_still_a_double) {
+    // 0.0/0.0 at runtime: the canonical quiet NaN (sign bit set on
+    // some CPUs). This — not every conceivable NaN payload — is what
+    // the representable domain includes.
     volatile double zero = 0.0;
     double n = zero / zero;
     Value v = box_double(n);
     ASSERT(is_double(v));
     double back = as_double(v);
     ASSERT(back != back); /* still NaN after the round trip */
-    /* the exact patterns, both signs, spelled out in bits */
+    /* the canonical patterns, both signs, spelled out in bits */
     ASSERT(is_double(box_double(bits_to_double(QNAN))));
     ASSERT(is_double(box_double(bits_to_double((uint64_t)1 << 63 | QNAN))));
 }
@@ -173,7 +186,7 @@ TEST(test_singletons_are_distinct_non_doubles) {
 
 int main(void) {
     RUN_TEST(test_doubles_round_trip);
-    RUN_TEST(test_hardware_nan_is_still_a_double);
+    RUN_TEST(test_canonical_nan_is_still_a_double);
     RUN_TEST(test_singletons_are_distinct_non_doubles);
     TEST_REPORT();
 }
