@@ -29,8 +29,12 @@ jobs:
         run: python3 scripts/check_exercises.py --compiler ${{ matrix.compiler }}
 
   learner-journey:
-    name: learner journey (end-to-end)
+    name: learner journey (${{ matrix.compiler }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +48,10 @@ jobs:
       # journey: init → list → first exercise fails as shipped →
       # every exercise solved and revealed → verify green, all recorded.
       - name: Simulate full learner journey
-        run: python3 scripts/simulate_learner.py --clings target/release/clings
+        run: >
+          python3 scripts/simulate_learner.py
+          --clings target/release/clings
+          --compiler ${{ matrix.compiler }}
 
   build-and-test:
     name: ${{ matrix.os }}

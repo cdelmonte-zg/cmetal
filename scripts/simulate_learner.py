@@ -74,15 +74,22 @@ def main():
             exercises = tomllib.load(f)["exercises"]
         print(f"workspace ready: {len(exercises)} exercises, compiler {cc}")
 
+        def supported(ex):
+            allowed = ex.get("compilers")
+            return not allowed or cc.lower() in [c.lower() for c in allowed]
+
         # 2. First contact populates the working copies.
         run([clings, "--compiler", cc, "list"], cwd=ws)
-        first = exercises[0]
+        # The smoke check needs an exercise this compiler can actually
+        # run; the curriculum invariant guarantees every exercise starts
+        # failing, so the first supported one must fail as shipped.
+        first = next(ex for ex in exercises if supported(ex))
         assert os.path.exists(os.path.join(
             ws, "my_exercises", first["dir"], f"{first['name']}.c")), \
             "list did not populate my_exercises/"
 
-        # 3. The very first exercise must fail as shipped — through the
-        #    workspace copy, not just in the pristine tree.
+        # 3. ...and it must fail through the workspace copy, not just in
+        #    the pristine tree.
         r = run([clings, "--compiler", cc, "run", first["name"]],
                 cwd=ws, check=False)
         assert r.returncode != 0, \
@@ -92,8 +99,7 @@ def main():
         solved, skipped = [], []
         for ex in exercises:
             name, d = ex["name"], ex["dir"]
-            allowed = ex.get("compilers")
-            if allowed and cc.lower() not in [c.lower() for c in allowed]:
+            if not supported(ex):
                 skipped.append(name)
                 continue
             with open(os.path.join(ws, "solutions", d, f"{name}.c.enc")) as f:
@@ -113,7 +119,10 @@ def main():
         run([clings, "--compiler", cc, "verify"], cwd=ws)
         with open(os.path.join(ws, ".clings-state.txt")) as f:
             lines = f.read().splitlines()
-        done = {l.strip() for l in lines[3:] if l.strip()}
+        # .clings-state.txt layout (see AppState::load/save): header
+        # line, blank, current exercise, blank, then one completed
+        # exercise per line.
+        done = {line.strip() for line in lines[4:] if line.strip()}
         missing = [n for n in solved if n not in done]
         assert not missing, f"not recorded as done: {missing}"
 
