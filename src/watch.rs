@@ -19,20 +19,54 @@ enum WatchEvent {
 /// Restores the terminal no matter how run_watch exits: every `?`
 /// between raw-mode entry and the end of the loop would otherwise
 /// leave the user's shell in raw mode inside the alternate screen.
-struct TerminalGuard;
+///
+/// The guard exists BEFORE it acquires anything and records which
+/// acquisitions succeeded: if enable_raw_mode fails after the
+/// alternate screen was entered, the half-built guard is still
+/// dropped during unwinding and leaves the alternate screen.
+struct TerminalGuard {
+    alternate_screen: bool,
+    raw_mode: bool,
+}
 
 impl TerminalGuard {
     fn enter() -> Result<Self> {
+        let mut guard = Self {
+            alternate_screen: false,
+            raw_mode: false,
+        };
         crossterm::execute!(io::stdout(), EnterAlternateScreen)?;
+        guard.alternate_screen = true;
         crossterm::terminal::enable_raw_mode()?;
-        Ok(Self)
+        guard.raw_mode = true;
+        Ok(guard)
     }
 }
 
 impl Drop for TerminalGuard {
     fn drop(&mut self) {
+        if self.raw_mode {
+            let _ = crossterm::terminal::disable_raw_mode();
+        }
+        if self.alternate_screen {
+            let _ = crossterm::execute!(io::stdout(), LeaveAlternateScreen);
+        }
+    }
+}
+
+/// Raw mode alone, for the welcome pause before the alternate screen.
+struct RawModeGuard;
+
+impl RawModeGuard {
+    fn enter() -> Result<Self> {
+        crossterm::terminal::enable_raw_mode()?;
+        Ok(Self)
+    }
+}
+
+impl Drop for RawModeGuard {
+    fn drop(&mut self) {
         let _ = crossterm::terminal::disable_raw_mode();
-        let _ = crossterm::execute!(io::stdout(), LeaveAlternateScreen);
     }
 }
 
@@ -98,9 +132,10 @@ pub fn run_watch(
         );
         println!();
         println!("  Press any key to start...");
-        crossterm::terminal::enable_raw_mode()?;
-        let _ = event::read();
-        crossterm::terminal::disable_raw_mode()?;
+        {
+            let _raw = RawModeGuard::enter()?;
+            let _ = event::read();
+        }
     }
 
     // Enter alternate screen and enable raw mode; the guard restores

@@ -118,19 +118,25 @@ impl Compiler {
         self.run_compiler(&args)
     }
 
+    /// The sanitizer-stage flags; the drift-alarm test compares this
+    /// exact construction against the CI checker's SAN_FLAGS.
+    fn sanitizer_args(&self) -> Vec<OsString> {
+        vec![
+            self.include_flag(),
+            "-fsanitize=address,undefined".into(),
+            "-fno-sanitize-recover=all".into(),
+            "-g".into(),
+            "-std=c11".into(),
+        ]
+    }
+
     pub fn compile_with_sanitizers(
         &self,
         source: &Path,
         output: &Path,
         extra_flags: &[String],
     ) -> Result<CompileResult> {
-        let mut args = vec![
-            self.include_flag(),
-            "-fsanitize=address,undefined".into(),
-            "-fno-sanitize-recover=all".into(),
-            "-g".into(),
-            "-std=c11".into(),
-        ];
+        let mut args = self.sanitizer_args();
         args.extend(extra_flags.iter().map(OsString::from));
         args.push("-o".into());
         args.push(output.into());
@@ -236,15 +242,17 @@ mod tests {
         let py_base: Vec<String> = extract("BASE_FLAGS").into_iter().skip(1).collect();
         assert_eq!(rust_base, py_base, "base flags drifted from the CI checker");
 
+        // Same shape for the sanitizer stage: compare what the Rust
+        // side actually builds, not a copy of it in the test.
+        let rust_san: Vec<String> = compiler
+            .sanitizer_args()
+            .iter()
+            .skip(1)
+            .map(|s| s.to_string_lossy().into_owned())
+            .collect();
         let py_san: Vec<String> = extract("SAN_FLAGS").into_iter().skip(1).collect();
         assert_eq!(
-            py_san,
-            vec![
-                "-fsanitize=address,undefined",
-                "-fno-sanitize-recover=all",
-                "-g",
-                "-std=c11"
-            ],
+            rust_san, py_san,
             "sanitizer flags drifted from the CI checker"
         );
 
