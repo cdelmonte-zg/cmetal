@@ -1,109 +1,109 @@
 # The CLI, subcommand by subcommand
 
-Running `clings` with no arguments starts [watch mode](watch-mode.md). The
+Running `cmetal` with no arguments starts [watch mode](watch-mode.md). The
 subcommands below do one thing and exit — handy for scripting, for jumping to a
 specific exercise, or for checking progress without entering the loop.
 
-## `clings init [dir]`
+## `cmetal init [dir]`
 
 Create a self-contained workspace from the curriculum embedded in the
 binary — no git clone needed. With no argument it creates
-`./clings-workspace`. The target must be a new or empty directory:
+`./cmetal-workspace`. The target must be a new or empty directory:
 `init` refuses to touch a directory that already has content.
 
 ```bash
-clings init my-clings-course
-cd my-clings-course
-clings
+cmetal init my-cmetal-course
+cd my-cmetal-course
+cmetal
 ```
 
-## `clings run <name>`
+## `cmetal run <name>`
 
 Compile, run, and verify a single exercise, print the result, and exit.
 
 ```bash
-clings run pointers1
-clings run bitwise2 --compiler clang
+cmetal run pointers1
+cmetal run bitwise2 --compiler clang
 ```
 
 Useful when you want to check one exercise without the watch loop taking over.
 
-## `clings hint <name> [--level N]`
+## `cmetal hint <name> [--level N]`
 
 Print the exercise's hints. With no `--level`, prints the first; `--level N`
 prints the first `N`. Hints go from gentlest to near-answer — see
 [Hints and solutions](hints-and-solutions.md).
 
 ```bash
-clings hint pointers1
-clings hint pointers1 --level 3
+cmetal hint pointers1
+cmetal hint pointers1 --level 3
 ```
 
-## `clings solution <name>`
+## `cmetal solution <name>`
 
 Reveal the official solution for an exercise you've already solved. Solutions
 are stored obfuscated and unlock only once earned, so this works only after the
 exercise passes.
 
 ```bash
-clings solution pointers2
+cmetal solution pointers2
 ```
 
-## `clings diff <name>`
+## `cmetal diff <name>`
 
 Show how your working copy differs from the pristine exercise, as a
-unified diff. Useful after `clings update` reports that an exercise
+unified diff. Useful after `cmetal update` reports that an exercise
 changed upstream while you had edits.
 
 ```bash
-clings diff pointers1
+cmetal diff pointers1
 ```
 
-## `clings list`
+## `cmetal list`
 
 List every exercise with its status — solved, pending, or skipped (e.g.
 "requires gcc" for a [compiler-restricted](choosing-a-compiler.md) exercise
 under the wrong compiler). This is the map of where you are.
 
 ```bash
-clings list
+cmetal list
 ```
 
-## `clings verify`
+## `cmetal verify`
 
 Run the full verification pipeline across **all** exercises and report. This is
 the same check CI runs; use it to confirm a clean toolchain or after changing
 compilers.
 
 ```bash
-clings verify
-clings verify --compiler clang
+cmetal verify
+cmetal verify --compiler clang
 ```
 
-## `clings update`
+## `cmetal update`
 
-Bring an [init-created](#clings-init-dir) workspace up to date with the
+Bring an [init-created](#cmetal-init-dir) workspace up to date with the
 curriculum embedded in the binary (upgrade the binary first: that is how
 new exercises arrive). Your work is safe: working copies you edited are
 never overwritten — if their exercise changed upstream, update says so
-and points you at `clings diff`/`clings reset` — while copies you never
+and points you at `cmetal diff`/`cmetal reset` — while copies you never
 touched are refreshed automatically. Interrupted updates are recovered
 on the next run. In a git checkout, use `git pull` instead.
 
 ```bash
-clings update
+cmetal update
 ```
 
-## `clings reset [name]`
+## `cmetal reset [name]`
 
 With a name: restore that one exercise's working copy to the pristine
 version and mark it pending again — other progress is kept. Without:
 clear ALL progress and restore every pristine exercise into
-`my_exercises/`. Nothing outside the clings workspace is touched.
+`my_exercises/`. Nothing outside the cmetal workspace is touched.
 
 ```bash
-clings reset pointers1   # redo one exercise
-clings reset             # start over completely
+cmetal reset pointers1   # redo one exercise
+cmetal reset             # start over completely
 ```
 
 ## `--compiler <gcc|clang>`

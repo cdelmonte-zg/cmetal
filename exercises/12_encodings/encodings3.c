@@ -82,7 +82,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_width1_is_a_bitmap) {
     const uint32_t bits[8] = {1, 0, 1, 1, 0, 1, 0, 0};

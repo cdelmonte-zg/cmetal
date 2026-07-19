@@ -1,8 +1,8 @@
-# Contributing to clings
+# Contributing to cmetal
 
 Thanks for your interest in contributing!
 
-> **Note:** learners never edit `exercises/` — clings copies it into the
+> **Note:** learners never edit `exercises/` — cmetal copies it into the
 > gitignored `my_exercises/` workspace on first run. `exercises/` must
 > only ever contain the broken, unsolved versions.
 
@@ -12,7 +12,7 @@ Thanks for your interest in contributing!
 2. Create the matching solution in `solutions/<topic_dir>/<name>.c`,
    then run `python3 scripts/solutions_codec.py pack` — solutions are
    stored obfuscated as `.c.enc` so learners aren't spoiled by accident
-   (clings reveals them in `my_solutions/` once an exercise passes).
+   (cmetal reveals them in `my_solutions/` once an exercise passes).
    To edit existing solutions, run `... unpack` first, edit, re-`pack`.
 3. Add an entry in `info.toml` with progressive hints
 
@@ -36,7 +36,7 @@ int main(void) {
     // Interactive demo that shows the bug
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_name) { ASSERT_EQ(...); }
 
@@ -58,7 +58,7 @@ sanitizers = false   # compile with ASan/UBSan
 # flags = ["-O2"]    # optional extra compiler flags for this exercise
 # compilers = ["gcc"]  # optional: restrict to compilers where the bug is
                        # detectable (default: all). Restricted exercises are
-                       # skipped when clings runs with another --compiler.
+                       # skipped when cmetal runs with another --compiler.
 hints = [
     "First hint: the gentlest nudge",
     "Second hint: more specific",
@@ -86,10 +86,10 @@ and what the target ABI provides stay distinguishable.
 
 If an exercise's contract includes allocation failure ("returns -1 and
 leaves the object untouched"), route its allocations through
-`CLINGS_MALLOC` / `CLINGS_REALLOC` from `include/clings_alloc.h`
+`CMETAL_MALLOC` / `CMETAL_REALLOC` from `include/cmetal_alloc.h`
 instead of calling malloc/realloc directly. In normal builds they are
 plain malloc/realloc; in TEST builds a test can arm the next allocation
-to fail with `clings_fail_next_alloc()` and assert the failure branch
+to fail with `cmetal_fail_next_alloc()` and assert the failure branch
 deterministically (see `memory2`, `structs2`, `function_pointers2`).
 
 ### Stand-alone exercises
@@ -109,7 +109,7 @@ CI enforces this on every push and PR:
 python3 scripts/check_exercises.py
 ```
 
-This replicates the exact `clings` verification pipeline (base flags plus
+This replicates the exact `cmetal` verification pipeline (base flags plus
 the per-exercise `test`, `sanitizers` and `flags` settings from
 `info.toml`). Run it whenever you add or change an exercise — and before
 pushing, so you don't accidentally publish exercises in their solved

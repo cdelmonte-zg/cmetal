@@ -130,7 +130,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_accessors_check_the_tag) {
     ConfigValue b = config_bool(true);

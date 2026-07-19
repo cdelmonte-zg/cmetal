@@ -1,6 +1,6 @@
 //! Packages the curriculum (exercises, obfuscated solutions, headers,
 //! info.toml) into a compressed archive embedded in the binary, so that
-//! `clings init` can materialize a workspace without the git repository.
+//! `cmetal init` can materialize a workspace without the git repository.
 
 use std::env;
 use std::fs;

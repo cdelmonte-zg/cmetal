@@ -75,7 +75,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 /* Plant a nonzero pattern in freed heap memory so the next malloc() of a
    Student hands back garbage instead of fresh zero-filled pages from the

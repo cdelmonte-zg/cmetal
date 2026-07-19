@@ -1,12 +1,12 @@
 [package]
-name = "clings"
+name = "cmetal"
 version = "0.3.0"
 edition = "2021"
 description = "Small exercises to learn advanced C concepts - inspired by rustlings"
 license = "MIT"
-repository = "https://github.com/cdelmonte-zg/clings"
-homepage = "https://cdelmonte-zg.github.io/clings/"
-documentation = "https://cdelmonte-zg.github.io/clings/"
+repository = "https://github.com/cdelmonte-zg/cmetal"
+homepage = "https://cdelmonte-zg.github.io/cmetal/"
+documentation = "https://cdelmonte-zg.github.io/cmetal/"
 readme = "README.md"
 keywords = ["c", "learning", "exercises", "rustlings", "sanitizers"]
 categories = ["command-line-utilities", "development-tools"]

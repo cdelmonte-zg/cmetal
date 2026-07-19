@@ -72,7 +72,7 @@ pub fn run_watch(
         }
         println!();
         println!(
-            "  clings v{} — compiler: {}",
+            "  cmetal v{} — compiler: {}",
             env!("CARGO_PKG_VERSION"),
             compiler.kind()
         );
@@ -251,7 +251,7 @@ fn print_watch_header(state: &AppState, compiler: &Compiler) {
     let (done, total) = state.progress();
     println!("\r");
     term::print_header(&format!(
-        "clings v{} [{}]  Exercise {} of {}",
+        "cmetal v{} [{}]  Exercise {} of {}",
         env!("CARGO_PKG_VERSION"),
         compiler.kind(),
         state.current_index + 1,
@@ -294,7 +294,7 @@ fn run_current_exercise(state: &AppState, compiler: &Compiler, build_dir: &Path)
             exercise.required_compilers(),
             compiler.kind()
         ));
-        term::print_info("Press 'n' to skip it, or restart clings with --compiler.");
+        term::print_info("Press 'n' to skip it, or restart cmetal with --compiler.");
         return false;
     }
 

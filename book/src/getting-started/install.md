@@ -1,6 +1,6 @@
 # Install
 
-The `clings` binary carries the whole course: install it, run `clings
+The `cmetal` binary carries the whole course: install it, run `cmetal
 init`, and you have a private workspace with every exercise — no git,
 no clone. (Contributors still work from the repository; see
 [Contributing](../guides/contributing.md).) Pick whichever route gets
@@ -18,28 +18,28 @@ you the binary.
 No Rust required.
 
 ```bash
-brew install cdelmonte-zg/tap/clings
+brew install cdelmonte-zg/tap/cmetal
 ```
 
 ## Option 2 — prebuilt binary
 
 No Rust required. Download the archive for your platform from the
-[latest release](https://github.com/cdelmonte-zg/clings/releases/latest), then:
+[latest release](https://github.com/cdelmonte-zg/cmetal/releases/latest), then:
 
 ```bash
-tar -xzf clings-<version>-<target>.tar.gz
-sudo mv clings-<version>-<target>/clings /usr/local/bin/
+tar -xzf cmetal-<version>-<target>.tar.gz
+sudo mv cmetal-<version>-<target>/cmetal /usr/local/bin/
 ```
 
 > **macOS:** the binaries are not code-signed yet. If Gatekeeper blocks the
 > first run, clear the quarantine flag:
-> `xattr -d com.apple.quarantine $(which clings)`.
+> `xattr -d com.apple.quarantine $(which cmetal)`.
 
 ## Option 3 — build from source
 
 ```bash
-git clone https://github.com/cdelmonte-zg/clings.git
-cd clings
+git clone https://github.com/cdelmonte-zg/cmetal.git
+cd cmetal
 cargo install --path .
 ```
 
@@ -49,21 +49,21 @@ The binary embeds the full curriculum: however you installed it, the
 shortest path is a self-contained workspace —
 
 ```bash
-clings init my-clings-course   # or just `clings init`
-cd my-clings-course
-clings
+cmetal init my-cmetal-course   # or just `cmetal init`
+cd my-cmetal-course
+cmetal
 ```
 
 Cloning the repository works exactly the same way and remains the route
 for contributing exercises or following unreleased changes:
 
 ```bash
-git clone https://github.com/cdelmonte-zg/clings.git
-cd clings
-clings
+git clone https://github.com/cdelmonte-zg/cmetal.git
+cd cmetal
+cmetal
 ```
 
-Either way, on first run clings copies the exercises into `my_exercises/` —
+Either way, on first run cmetal copies the exercises into `my_exercises/` —
 that is where you work. Head to the [Quickstart](quickstart.md).
 
 ## Upgrade
@@ -72,25 +72,25 @@ New exercises ship with the binary. Upgrade it, matching how you
 installed it:
 
 ```bash
-brew upgrade clings              # Homebrew
+brew upgrade cmetal              # Homebrew
 cargo install --path . --force   # built from source
 ```
 
 If you installed a prebuilt binary, download the new archive from the
-[latest release](https://github.com/cdelmonte-zg/clings/releases/latest) and
-replace `/usr/local/bin/clings` the same way you installed it.
+[latest release](https://github.com/cdelmonte-zg/cmetal/releases/latest) and
+replace `/usr/local/bin/cmetal` the same way you installed it.
 
 Then bring your workspace up to date with the curriculum embedded in
 the new binary:
 
 ```bash
-cd my-clings-course
-clings update
+cd my-cmetal-course
+cmetal update
 ```
 
 `update` never overwrites work you have edited: untouched working
 copies are refreshed, edited ones are kept and reported — compare with
-`clings diff <name>` or take the new version with `clings reset <name>`.
+`cmetal diff <name>` or take the new version with `cmetal reset <name>`.
 (In a git checkout, update with `git pull` instead.)
 
 ## Uninstall
@@ -98,9 +98,9 @@ copies are refreshed, edited ones are kept and reported — compare with
 Remove the binary, matching how you installed it:
 
 ```bash
-brew uninstall clings            # Homebrew
-sudo rm /usr/local/bin/clings    # prebuilt binary
-cargo uninstall clings           # built from source
+brew uninstall cmetal            # Homebrew
+sudo rm /usr/local/bin/cmetal    # prebuilt binary
+cargo uninstall cmetal           # built from source
 ```
 
 Everything else — your progress, `my_exercises/`, revealed solutions — lives

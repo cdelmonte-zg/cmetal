@@ -57,7 +57,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_format_is_little_endian) {
     uint8_t buf[4] = {0};

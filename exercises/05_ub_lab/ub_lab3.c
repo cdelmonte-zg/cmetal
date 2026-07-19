@@ -90,7 +90,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_basic_push) {
     IntVec *v = intvec_new(4);

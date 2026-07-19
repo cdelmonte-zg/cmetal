@@ -84,7 +84,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_push_front) {
     struct node *list = NULL;

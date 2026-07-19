@@ -1,16 +1,16 @@
-[![CI](https://github.com/cdelmonte-zg/clings/actions/workflows/ci.yml/badge.svg)](https://github.com/cdelmonte-zg/clings/actions/workflows/ci.yml)
-[![Docs](https://github.com/cdelmonte-zg/clings/actions/workflows/pages.yml/badge.svg)](https://cdelmonte-zg.github.io/clings/)
+[![CI](https://github.com/cdelmonte-zg/cmetal/actions/workflows/ci.yml/badge.svg)](https://github.com/cdelmonte-zg/cmetal/actions/workflows/ci.yml)
+[![Docs](https://github.com/cdelmonte-zg/cmetal/actions/workflows/pages.yml/badge.svg)](https://cdelmonte-zg.github.io/cmetal/)
 
 ```
-       _ _
-   ___| (_)_ __   __ _ ___
-  / __| | | '_ \ / _` / __|
- | (__| | | | | | (_| \__ \
-  \___|_|_|_| |_|\__, |___/
-                  |___/
+                     _        _ 
+  ___ _ __ ___   ___| |_ __ _| |
+ / __| '_ ` _ \ / _ \ __/ _` | |
+| (__| | | | | |  __/ || (_| | |
+ \___|_| |_| |_|\___|\__\__,_|_|
 ```
 
-**Small exercises to learn advanced C concepts.**
+**Small exercises to learn advanced C concepts.** (formerly known as
+*clings*)
 
 Inspired by [rustlings](https://github.com/rust-lang/rustlings) --
 fix broken C code, learn by doing.
@@ -18,18 +18,18 @@ fix broken C code, learn by doing.
 The CLI is written in Rust for a fast, cross-platform experience;
 the exercises are pure C11.
 
-📖 **[Documentation](https://cdelmonte-zg.github.io/clings/)** — install,
+📖 **[Documentation](https://cdelmonte-zg.github.io/cmetal/)** — install,
 the watch-mode loop, the curriculum, and how verification works.
 
 ---
 
 ## Screenshots
 
-![Welcome screen](assets/clings-1.png)
+![Welcome screen](assets/cmetal-1.svg)
 
-![Exercise in progress](assets/clings-2.png)
+![Exercise in progress](assets/cmetal-2.svg)
 
-*Edit a `.c` file -- save -- clings recompiles -- read the hint -- fix -- green.*
+*Edit a `.c` file -- save -- cmetal recompiles -- read the hint -- fix -- green.*
 
 ---
 
@@ -44,31 +44,31 @@ the watch-mode loop, the curriculum, and how verification works.
 ### Option 1: Homebrew (macOS / Linux, no Rust required)
 
 ```bash
-brew install cdelmonte-zg/tap/clings
+brew install cdelmonte-zg/tap/cmetal
 ```
 
 ### Option 2: prebuilt binary (no Rust required)
 
 Download the archive for your platform from the
-[latest release](https://github.com/cdelmonte-zg/clings/releases/latest),
+[latest release](https://github.com/cdelmonte-zg/cmetal/releases/latest),
 then:
 
 ```bash
-tar -xzf clings-<version>-<target>.tar.gz
-sudo mv clings-<version>-<target>/clings /usr/local/bin/
+tar -xzf cmetal-<version>-<target>.tar.gz
+sudo mv cmetal-<version>-<target>/cmetal /usr/local/bin/
 ```
 
 Then create a workspace (see below) or clone this repository.
 
 > **macOS:** the binaries are not code-signed yet; if Gatekeeper blocks
 > the first run, clear the quarantine flag with
-> `xattr -d com.apple.quarantine $(which clings)`.
+> `xattr -d com.apple.quarantine $(which cmetal)`.
 
 ### Option 3: build from source
 
 ```bash
-git clone https://github.com/cdelmonte-zg/clings.git
-cd clings
+git clone https://github.com/cdelmonte-zg/cmetal.git
+cd cmetal
 cargo install --path .
 ```
 
@@ -78,14 +78,14 @@ The binary embeds the full curriculum. Wherever you installed it from,
 this is all it takes:
 
 ```bash
-clings init my-clings-course   # or just `clings init`
-cd my-clings-course
-clings
+cmetal init my-cmetal-course   # or just `cmetal init`
+cd my-cmetal-course
+cmetal
 ```
 
 Cloning the repository still works exactly as before and remains the
 way to contribute exercises or follow unreleased changes; for learning,
-`clings init` is the shortest path.
+`cmetal init` is the shortest path.
 
 ## Upgrade
 
@@ -93,24 +93,24 @@ New exercises ship with the binary. Upgrade it, matching how you
 installed it:
 
 ```bash
-brew upgrade clings              # Homebrew
+brew upgrade cmetal              # Homebrew
 cargo install --path . --force   # built from source
 ```
 
 If you installed a prebuilt binary, download the new archive from the
-[latest release](https://github.com/cdelmonte-zg/clings/releases/latest)
-and replace `/usr/local/bin/clings` the same way you installed it.
+[latest release](https://github.com/cdelmonte-zg/cmetal/releases/latest)
+and replace `/usr/local/bin/cmetal` the same way you installed it.
 
 Then reconcile your workspace with the new curriculum:
 
 ```bash
-cd my-clings-course
-clings update
+cd my-cmetal-course
+cmetal update
 ```
 
 `update` never overwrites work you have edited: untouched working
 copies are refreshed, edited ones are kept and reported — compare with
-`clings diff <name>` or take the new version with `clings reset <name>`.
+`cmetal diff <name>` or take the new version with `cmetal reset <name>`.
 (In a git checkout, update with `git pull` instead.)
 
 ## Uninstall
@@ -118,9 +118,9 @@ copies are refreshed, edited ones are kept and reported — compare with
 Remove the binary, matching how you installed it:
 
 ```bash
-brew uninstall clings            # Homebrew
-sudo rm /usr/local/bin/clings    # prebuilt binary
-cargo uninstall clings           # built from source
+brew uninstall cmetal            # Homebrew
+sudo rm /usr/local/bin/cmetal    # prebuilt binary
+cargo uninstall cmetal           # built from source
 ```
 
 Everything else — your progress, `my_exercises/`, revealed solutions —
@@ -132,18 +132,18 @@ trace is left.
 ### I want to learn C
 
 ```bash
-brew install cdelmonte-zg/tap/clings      # or any install option above
-clings init my-clings-course
-cd my-clings-course
-clings
+brew install cdelmonte-zg/tap/cmetal      # or any install option above
+cmetal init my-cmetal-course
+cd my-cmetal-course
+cmetal
 ```
 
-On first run clings copies the exercises into `my_exercises/` — that's
+On first run cmetal copies the exercises into `my_exercises/` — that's
 where you work; the pristine exercises in `exercises/` stay untouched.
 (A git clone of this repository works exactly the same way.)
 
 Each exercise has a bug or a `TODO` for you to fix: open the `.c` file
-under `my_exercises/` in your editor, save your changes, and clings
+under `my_exercises/` in your editor, save your changes, and cmetal
 recompiles and verifies automatically. Stuck? Press `h` for progressive
 hints. When an exercise passes, the official solution is revealed in
 `my_solutions/` so you can compare it with yours (solutions are stored
@@ -151,9 +151,9 @@ obfuscated — no accidental spoilers while browsing the repo).
 
 ### I'm coming back after a break
 
-Just run `clings` again from your workspace — progress persists across
-sessions. `clings list` shows where you left off, `clings solution
-<name>` re-opens any solution you've already earned, and `clings reset`
+Just run `cmetal` again from your workspace — progress persists across
+sessions. `cmetal list` shows where you left off, `cmetal solution
+<name>` re-opens any solution you've already earned, and `cmetal reset`
 wipes progress and restores the pristine exercises if you want to start
 over.
 
@@ -184,28 +184,28 @@ python3 scripts/check_exercises.py          # the invariant gatekeeper
 ### CLI subcommands
 
 ```bash
-clings init [dir]            # create a self-contained workspace
-clings update                # sync workspace with the binary's curriculum
-clings diff <name>           # your working copy vs the pristine exercise
-clings run <name>            # run a specific exercise
-clings hint <name> --level 2 # show first 2 hints
-clings solution <name>       # reveal the solution (once solved)
-clings list                  # list exercises and progress
-clings verify                # verify all exercises
-clings reset [name]          # all: clear progress; one: restore its file
+cmetal init [dir]            # create a self-contained workspace
+cmetal update                # sync workspace with the binary's curriculum
+cmetal diff <name>           # your working copy vs the pristine exercise
+cmetal run <name>            # run a specific exercise
+cmetal hint <name> --level 2 # show first 2 hints
+cmetal solution <name>       # reveal the solution (once solved)
+cmetal list                  # list exercises and progress
+cmetal verify                # verify all exercises
+cmetal reset [name]          # all: clear progress; one: restore its file
 ```
 
 ---
 
 ## How it works
 
-1. clings reads `info.toml` to discover exercises and their metadata.
+1. cmetal reads `info.toml` to discover exercises and their metadata.
 2. In watch mode it monitors your `my_exercises/` workspace for file changes.
 3. On each save it compiles the exercise with `gcc` (or `clang`),
    runs the binary, and optionally runs unit tests (`-DTEST`)
    and sanitizers (`-fsanitize=address,undefined`).
 4. Results are shown immediately in the terminal.
-5. Progress is saved to `.clings-state.txt` and persists across sessions.
+5. Progress is saved to `.cmetal-state.txt` and persists across sessions.
 
 ---
 

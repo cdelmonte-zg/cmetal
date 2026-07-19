@@ -86,7 +86,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_config_create) {
     struct config *c = config_create(800, 600, "Test");

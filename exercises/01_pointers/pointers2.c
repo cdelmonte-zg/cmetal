@@ -43,7 +43,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_swap_direct) {
     /* swap() is part of the exercise: it must work on its own,

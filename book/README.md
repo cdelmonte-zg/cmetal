@@ -1,6 +1,6 @@
 # Documentation site (mdBook)
 
-The published site: <https://cdelmonte-zg.github.io/clings/>. It is built from
+The published site: <https://cdelmonte-zg.github.io/cmetal/>. It is built from
 `book/src/` with [mdBook](https://rust-lang.github.io/mdBook/) and deployed by
 `.github/workflows/pages.yml` on every push to `main` that touches the docs.
 

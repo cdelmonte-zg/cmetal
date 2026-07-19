@@ -1,6 +1,6 @@
 # The curriculum
 
-clings ships **42 exercises across 14 topics**, ordered roughly from warm-up to
+cmetal ships **42 exercises across 14 topics**, ordered roughly from warm-up to
 the parts of C that bite in code review. Each is a real bug — the kind found in
 production C — never a fill-in-the-blanks template.
 
@@ -51,7 +51,7 @@ telling you, which is a skill no book can hand you.
 
 ## Seeing the list live
 
-`clings list` shows every exercise with its status — solved, pending, or skipped
+`cmetal list` shows every exercise with its status — solved, pending, or skipped
 because it [requires a specific compiler](../guides/choosing-a-compiler.md). It
 is the authoritative, up-to-date view; this table is the map.
 

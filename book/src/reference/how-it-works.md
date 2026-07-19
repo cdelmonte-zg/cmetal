@@ -1,6 +1,6 @@
 # How verification works
 
-Every time you save an exercise — or run `clings run`, `clings verify`, or the
+Every time you save an exercise — or run `cmetal run`, `cmetal verify`, or the
 CI check — the same pipeline decides pass or fail. Knowing the exact stages and
 flags demystifies the results you see.
 
@@ -69,5 +69,5 @@ an exercise declares `compilers = ["gcc"]`. Under a different compiler it is
 **skipped**, because its "must fail as shipped" half can't hold there — but note
 the *solution* must still pass under every compiler, so that half of the
 invariant is always checked. This is why a restricted exercise shows as
-"requires gcc" in `clings list` rather than passing vacuously. See
+"requires gcc" in `cmetal list` rather than passing vacuously. See
 [Choosing a compiler](../guides/choosing-a-compiler.md).

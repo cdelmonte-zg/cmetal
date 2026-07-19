@@ -3,7 +3,10 @@ use anyhow::{Context, Result};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-const STATE_FILE: &str = ".clings-state.txt";
+const STATE_FILE: &str = ".cmetal-state.txt";
+/// Pre-rename workspaces (the project was called clings) used this
+/// name; it is migrated transparently on first load.
+const LEGACY_STATE_FILE: &str = ".clings-state.txt";
 
 pub struct AppState {
     state_path: PathBuf,
@@ -15,6 +18,11 @@ pub struct AppState {
 impl AppState {
     pub fn new(exercises: Vec<Exercise>, base_dir: &Path) -> Result<Self> {
         let state_path = base_dir.join(STATE_FILE);
+        let legacy = base_dir.join(LEGACY_STATE_FILE);
+        if !state_path.exists() && legacy.exists() {
+            // Progress from a pre-rename workspace: adopt it.
+            let _ = std::fs::rename(&legacy, &state_path);
+        }
         let mut state = Self {
             state_path,
             exercises,

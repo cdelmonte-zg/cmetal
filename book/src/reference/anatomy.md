@@ -14,7 +14,7 @@ shape; the step-by-step contributor walkthrough is in
 | Solution   | `solutions/<NN_topic>/<name>.c.enc`   | The reference fix, stored obfuscated   |
 | Metadata   | `info.toml`                           | Hints and per-exercise pipeline settings |
 
-Learners never touch `exercises/` — clings copies it into the gitignored
+Learners never touch `exercises/` — cmetal copies it into the gitignored
 `my_exercises/` workspace on first run. `exercises/` therefore only ever holds
 the *broken, unsolved* version.
 
@@ -37,7 +37,7 @@ int main(void) {
     // Interactive demo that shows the bug
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_name) { ASSERT_EQ(/* ... */); }
 
@@ -92,6 +92,6 @@ form is tracked.
 ## The invariant it all serves
 
 Whatever the pieces say, one rule governs them: the exercise must **fail**
-verification as shipped, and the solution must **pass** it. `clings verify` and
+verification as shipped, and the solution must **pass** it. `cmetal verify` and
 `scripts/check_exercises.py` both enforce it — the latter runs in CI. See
 [How verification works](how-it-works.md#the-exercise-invariant).

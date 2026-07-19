@@ -134,7 +134,7 @@ int main(void) {
     return 0;
 }
 #else
-#include "clings_test.h"
+#include "cmetal_test.h"
 
 TEST(test_upcast_preserves_the_tag) {
     Node *p = paragraph_new("x");
