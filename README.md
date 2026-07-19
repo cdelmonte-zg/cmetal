@@ -25,9 +25,9 @@ the watch-mode loop, the curriculum, and how verification works.
 
 ## Screenshots
 
-![Welcome screen](assets/cmetal-1.png)
+![Welcome screen](assets/cmetal-1.svg)
 
-![Exercise in progress](assets/cmetal-2.png)
+![Exercise in progress](assets/cmetal-2.svg)
 
 *Edit a `.c` file -- save -- cmetal recompiles -- read the hint -- fix -- green.*
 

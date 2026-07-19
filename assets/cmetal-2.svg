@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="469" height="343" font-family="SF Mono, DejaVu Sans Mono, Menlo, monospace" font-size="14">
+<rect width="469" height="343" rx="10" fill="#1b1e28"/>
+<circle cx="22" cy="22" r="6" fill="#f2777a"/>
+<circle cx="42" cy="22" r="6" fill="#ffcc66"/>
+<circle cx="62" cy="22" r="6" fill="#99cc99"/>
+<text y="56"><tspan x="20.0" fill="#99cc99" font-weight="bold" xml:space="preserve">$ </tspan><tspan x="36.9" fill="#c8c8c8" xml:space="preserve">cmetal run intro1</tspan></text>
+<text y="77"><tspan x="20.0" fill="#c8c8c8" xml:space="preserve">  Running: intro1</tspan></text>
+<text y="98"></text>
+<text y="119"><tspan x="20.0" fill="#f2777a" font-weight="bold" xml:space="preserve">  ✗ </tspan><tspan x="53.7" fill="#c8c8c8" xml:space="preserve">intro1 failed at stage: execution</tspan></text>
+<text y="140"></text>
+<text y="161"><tspan x="20.0" fill="#c8c8c8" xml:space="preserve">  ── execution output ──</tspan></text>
+<text y="182"><tspan x="20.0" fill="#c8c8c8" xml:space="preserve">  Welcome to cmetal! Let&#x27;s learn some advanced C.</tspan></text>
+<text y="203"></text>
+<text y="224"><tspan x="20.0" fill="#99cc99" font-weight="bold" xml:space="preserve">$ </tspan><tspan x="36.9" fill="#c8c8c8" xml:space="preserve">cmetal hint intro1</tspan></text>
+<text y="245"><tspan x="20.0" fill="#c8c8c8" xml:space="preserve">  Hint 1 of 1 for intro1:</tspan></text>
+<text y="266"></text>
+<text y="287"><tspan x="20.0" fill="#c8c8c8" xml:space="preserve">  In C, main() should return 0 to indicate success.</tspan></text>
+<text y="308"><tspan x="20.0" fill="#c8c8c8" xml:space="preserve">  What value is it returning now?</tspan></text>
+</svg>
