@@ -140,6 +140,11 @@ TEST(test_get_out_of_bounds) {
     dynarray_destroy(da);
 }
 
+/* Note: the failure branch of the contract (realloc returning NULL,
+ * push returning -1 with the array untouched) is NOT exercised by
+ * these tests — forcing an allocation failure deterministically would
+ * need an injectable allocator. The contract still requires it. */
+
 int main(void) {
     RUN_TEST(test_create);
     RUN_TEST(test_push_and_get);

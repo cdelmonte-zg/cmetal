@@ -148,6 +148,11 @@ TEST(test_sort_large_elements) {
     ASSERT_STR_EQ(recs[3].label, "delta");
 }
 
+/* Note: the allocation-failure branch of the contract (bubble_sort
+ * returning -1 with the array untouched) is NOT exercised by these
+ * tests — forcing malloc to fail deterministically would need an
+ * injectable allocator. The contract still requires it. */
+
 int main(void) {
     RUN_TEST(test_sort_ascending);
     RUN_TEST(test_sort_descending);
