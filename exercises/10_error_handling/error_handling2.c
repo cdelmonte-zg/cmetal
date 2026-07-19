@@ -39,20 +39,31 @@ static int is_valid_int(const char *s, int len) {
 // Helper: string-to-int with RANGE checking (digit validation is
 // is_valid_int's job). Returns 0 and stores the value through out, or
 // -1 if the number does not fit in an int. Writes *out only on success.
+//
+// The overflow check happens BEFORE each multiply-add, in unsigned
+// arithmetic: checking after the operation would itself be UB once the
+// accumulator overflows — no matter how wide the accumulator, a long
+// enough digit string overflows it.
 static int parse_int(const char *s, int len, int *out) {
-    long long result = 0;
-    int negative = 0;
-    int start = 0;
-    if (s[0] == '-') {
-        negative = 1;
-        start = 1;
-    }
+    unsigned int result = 0;
+    int negative = s[0] == '-';
+    int start = negative ? 1 : 0;
+    /* |INT_MIN| is one more than INT_MAX on two's complement */
+    unsigned int limit = negative ? (unsigned int)INT_MAX + 1u
+                                  : (unsigned int)INT_MAX;
     for (int i = start; i < len; i++) {
-        result = result * 10 + (s[i] - '0');
-        if (result > (long long)INT_MAX + 1) return -1;  /* too big already */
+        unsigned int digit = (unsigned int)(s[i] - '0');
+        if (result > (limit - digit) / 10u) {
+            return -1;  /* result * 10 + digit would exceed the limit */
+        }
+        result = result * 10u + digit;
     }
-    if (!negative && result > INT_MAX) return -1;
-    *out = (int)(negative ? -result : result);
+    if (negative) {
+        *out = result == (unsigned int)INT_MAX + 1u ? INT_MIN
+                                                    : -(int)result;
+    } else {
+        *out = (int)result;
+    }
     return 0;
 }
 
@@ -192,6 +203,24 @@ TEST(test_number_too_big_for_int) {
     ASSERT_EQ(b, 99);
 }
 
+TEST(test_extremely_large_first_number) {
+    int a = 99, b = 99;
+    /* Long enough to overflow ANY fixed-width accumulator: the range
+     * check must reject it before the arithmetic, not after. */
+    int err = read_pair(
+        "999999999999999999999999999999999999999999999999,1", &a, &b);
+    ASSERT_EQ(err, -3);
+    ASSERT_EQ(a, 99);
+    ASSERT_EQ(b, 99);
+}
+
+TEST(test_int_boundaries) {
+    int a = 0, b = 0;
+    ASSERT_EQ(read_pair("2147483647,-2147483648", &a, &b), 0);
+    ASSERT_EQ(a, INT_MAX);
+    ASSERT_EQ(b, INT_MIN);
+}
+
 TEST(test_empty_before_comma) {
     int a = 99, b = 99;
     int err = read_pair(",5", &a, &b);
@@ -219,6 +248,8 @@ int main(void) {
     RUN_TEST(test_invalid_first_number);
     RUN_TEST(test_invalid_second_number);
     RUN_TEST(test_number_too_big_for_int);
+    RUN_TEST(test_extremely_large_first_number);
+    RUN_TEST(test_int_boundaries);
     RUN_TEST(test_empty_before_comma);
     RUN_TEST(test_empty_after_comma);
     TEST_REPORT();
