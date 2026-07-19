@@ -14,7 +14,7 @@ that actually hurt.
 
 ## Where we are
 
-Today cmetal ships 53 exercises across 17 topics (pointers, memory, UB,
+Today cmetal ships 59 exercises across 19 topics (pointers, memory, UB,
 strings, structs, function pointers, const, error handling, bitwise), a
 watch-mode TUI with progressive hints, sanitizer-backed verification,
 solutions that unlock only after you solve the exercise, and a
@@ -77,8 +77,9 @@ chapters.
   growth, escape discipline at the lifetime boundary (topic 15).
 - **A mark-sweep GC on a toy heap** ✓ — with AddressSanitizer as the
   judge, because a GC bug *is* a use-after-free.
-- **NaN boxing** and **bytecode dispatch** (the portable switch, and
-  computed goto as a gcc-only variant via per-exercise flags).
+- **NaN boxing** ✓ and **bytecode dispatch** ✓ (the portable switch,
+  and computed goto — a GNU C extension both gcc and clang accept,
+  enabled via per-exercise flags).
 - **Capstone:** serialize, validate and reload a bytecode chunk —
   magic, version, constant pool, code stream.
 
