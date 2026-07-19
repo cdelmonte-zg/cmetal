@@ -1,6 +1,6 @@
 # The curriculum
 
-cmetal ships **59 exercises across 19 topics**, ordered roughly from warm-up to
+cmetal ships **62 exercises across 20 topics**, ordered roughly from warm-up to
 the parts of C that bite in code review. Each is a real bug — the kind found in
 production C — never a fill-in-the-blanks template.
 
@@ -25,6 +25,7 @@ production C — never a fill-in-the-blanks template.
 | 16 | Garbage Collection    | 3         | Mark-sweep: reachability, cycles, sweep discipline, finalization |
 | 17 | NaN Boxing            | 3         | IEEE-754 bit layout, legal punning, mask discipline, payload packing |
 | 18 | Bytecode Dispatch     | 3         | Defensive stream decoding, refusable stacks, jump-table discipline |
+| 19 | Capstone              | 3         | A binary format end to end: writing, validating, owning |
 
 ## How the topics build
 
