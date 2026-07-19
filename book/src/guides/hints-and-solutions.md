@@ -47,12 +47,19 @@ clings solution pointers2
 
 ## Starting over
 
-If you want a clean slate — pristine exercises, no revealed solutions, progress
-reset — use:
+To redo a single exercise — pristine file back, marked pending again,
+everything else kept:
+
+```bash
+clings reset pointers1
+```
+
+For a clean slate — pristine exercises, no revealed solutions, progress
+reset — use it without a name:
 
 ```bash
 clings reset
 ```
 
 That restores `my_exercises/` from the pristine `exercises/` and clears
-`.clings-state.txt`. Your git checkout is otherwise untouched.
+`.clings-state.txt`. Your workspace (or checkout) is otherwise untouched.

@@ -28,6 +28,24 @@ jobs:
       - name: Check exercise invariant
         run: python3 scripts/check_exercises.py --compiler ${{ matrix.compiler }}
 
+  learner-journey:
+    name: learner journey (end-to-end)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo build
+        run: cargo build --release
+
+      # Drives the real binary through the full embedded-workspace
+      # journey: init → list → first exercise fails as shipped →
+      # every exercise solved and revealed → verify green, all recorded.
+      - name: Simulate full learner journey
+        run: python3 scripts/simulate_learner.py --clings target/release/clings
+
   build-and-test:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
