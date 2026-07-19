@@ -125,9 +125,16 @@ Initialize da->count = 0 and da->capacity = initial_cap after malloc.
   """
 In dynarray_push(), what happens if realloc() returns NULL?
   da->items = realloc(da->items, ...)
-If realloc fails, you've lost the original pointer! Use a temp variable:
-  int *tmp = realloc(da->items, ...);
-  if (tmp) da->items = tmp;
+If realloc fails, you've lost the original pointer! Use a temp variable,
+and make failure part of the contract (the tests already call it):
+  int dynarray_push(DynArray *da, int value) {
+    ...
+    int *tmp = realloc(da->items, ...);
+    if (!tmp) return -1;   /* array untouched, caller informed */
+    da->items = tmp;
+    ...
+    return 0;
+  }
 """,
 ]
 
@@ -142,12 +149,18 @@ matrix_destroy() frees the data pointer array, but what about
 the individual row arrays? Each row was allocated separately.
 """,
   """
-Add a loop to free each row: for (int i = 0; i < m->rows; i++) free(m->data[i]);
-Do this BEFORE freeing m->data.
+Add a loop to free each row BEFORE freeing the row-pointer array.
+Note the demo and the tests call matrix_destroy(&m): the contract
+must become matrix_destroy(Matrix **m).
 """,
   """
-After freeing, set m->data = NULL and m->rows = m->cols = 0.
-This prevents use-after-free if destroy is called twice.
+matrix_destroy takes Matrix ** precisely so it can null the CALLER's
+pointer — nulling fields inside a struct you are about to free helps
+nobody. End with:
+  free(*m);
+  *m = NULL;
+After matrix_destroy(&m), m == NULL and a second call is a no-op —
+exactly what test_double_destroy_is_safe checks.
 """,
 ]
 
@@ -557,18 +570,24 @@ The function transforms each element IN PLACE.
 name = "function_pointers2"
 dir = "08_function_pointers"
 test = true
-sanitizers = false
+sanitizers = true
 hints = [
   """
-The swap logic needs byte-level access to elements.
-Cast base to char* and use i * size for offsets:
-  char *a = (char *)base + i * size;
+Two problems: how element addresses are computed, and where the swap
+buffer's size comes from. Byte offsets need a char* base — and can a
+fixed 64-byte buffer really hold an element of ANY size?
 """,
   """
-Use memcpy with a temporary buffer (allocated on the stack) for swapping:
-  char tmp[size]; memcpy(tmp, a, size); memcpy(a, b, size); memcpy(b, tmp, size);
-Note: variable-length arrays (VLA) are optional in C11.
-You can use a fixed buffer or malloc instead.
+(int *)base + j * size advances by j*size INTS, i.e. j*size*sizeof(int)
+bytes. Cast to char* / unsigned char* so the arithmetic is in bytes:
+  (char *)base + j * size
+""",
+  """
+The element size is only known at runtime, so allocate the swap buffer
+with malloc(size) and free it before returning. If malloc fails, return
+-1 without touching the array; return 0 on success — the tests already
+call the int-returning contract. (A fixed tmp[64] silently overflows
+for bigger elements: that is what test_sort_large_elements catches.)
 """,
 ]
 
@@ -617,16 +636,24 @@ Add const to read-only parameters:
 name = "const2"
 dir = "09_const"
 test = true
-sanitizers = false
+sanitizers = true
 hints = [
   """
 find_first() only reads the array — its parameter and return type
-should both be const int *. The test passes a const int[].
+should both be const int *. The test passes a const int[], so the
+non-const version doesn't even compile with -Werror.
 """,
   """
-array_fill() needs to modify *arr but should NOT reassign arr itself.
-Declare it as int *const arr to make the pointer itself const.
-Use index-based access (arr[i]) instead of pointer arithmetic (arr++).
+In array_fill() the real bug is the final `*arr = 0`: after the loop,
+arr points one past the end of the buffer, so that write is out of
+bounds — the sanitizer run flags it in the demo.
+""",
+  """
+Drop the stray sentinel write and use index-based access. Declaring
+the parameter `int *const arr` makes the compiler reject any arr++
+inside the function — useful self-defense, but a top-level const is
+not part of the function's type (C11 6.7.6.3): callers can't rely on
+it and no test can enforce it.
 """,
 ]
 

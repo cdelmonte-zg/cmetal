@@ -7,6 +7,14 @@
 // Fix the count_set_bits() and is_power_of_two() functions.
 
 #include <stdio.h>
+#include <limits.h>
+
+// NOTE: this file's tests assume unsigned int is 32 bits — true on
+// every platform clings targets, but an ABI fact, not a C guarantee
+// (C11 only requires at least 16 value bits). The assert makes the
+// assumption explicit; a good count_set_bits fix works for ANY width.
+_Static_assert(UINT_MAX == 0xFFFFFFFFu,
+               "bitwise1's tests assume 32-bit unsigned int");
 
 // count_set_bits: return the number of 1-bits in n (popcount).
 // BUG: The loop shifts in the wrong direction and only checks 16 bits.
@@ -48,7 +56,8 @@ TEST(test_count_0xff) {
 }
 
 TEST(test_count_all_ones) {
-    ASSERT_EQ(count_set_bits(0xFFFFFFFF), 32);
+    /* 32 set bits — pinned by the _Static_assert on UINT_MAX above. */
+    ASSERT_EQ(count_set_bits(UINT_MAX), 32);
 }
 
 TEST(test_power_of_two_one) {
