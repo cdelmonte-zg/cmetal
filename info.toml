@@ -820,3 +820,85 @@ Bit positions are 0-indexed: bit 0 is the LSB.
 Just return pos directly.
 """,
 ]
+
+# ── 12: Encodings ───────────────────────────────────────
+#
+# Bytes on the wire: the techniques every binary format — and every
+# bytecode file — is made of. Endianness, varints, bit packing.
+
+[[exercises]]
+name = "encodings1"
+dir = "12_encodings"
+test = true
+sanitizers = true
+hints = [
+  """
+Casting the buffer to uint32_t* makes three mistakes at once: the
+bytes land in HOST order (not the format's), the cast breaks strict
+aliasing (C11 6.5p7), and buf+1 makes the store misaligned — UBSan
+flags that at runtime.
+""",
+  """
+Write the four bytes yourself with shifts:
+  buf[0] = value & 0xFF;  buf[1] = (value >> 8) & 0xFF;  ...
+No cast, no alignment requirement, and the byte order is decided by
+YOU, not by the CPU.
+""",
+  """
+On the read side, remember ub3: buf[3] is promoted to signed int, so
+buf[3] << 24 overflows for bytes >= 0x80. Cast first:
+  (uint32_t)buf[0] | ((uint32_t)buf[1] << 8)
+  | ((uint32_t)buf[2] << 16) | ((uint32_t)buf[3] << 24)
+""",
+]
+
+[[exercises]]
+name = "encodings2"
+dir = "12_encodings"
+test = true
+sanitizers = true
+hints = [
+  """
+Encoding is fine — the decoder is the problem: it trusts its input.
+Decoding is PARSING, and parsers get fed garbage: truncated buffers,
+endless continuation bits, values too big for the type.
+""",
+  """
+Three checks are missing: stop at `len` (truncated input -> return 0),
+stop at 5 bytes (a uint32_t varint can never need more), and reject a
+5th byte carrying more than 4 payload bits (the value wouldn't fit —
+accepting it would silently drop the top bits).
+""",
+  """
+Structure the loop around the limit:
+  for (size_t i = 0; i < len && i < 5; i++) { ... }
+On the 5th byte check (bits >> 4) != 0 -> return 0. Write *out only
+when the terminating byte was actually seen (see error_handling2:
+no partial results from a failed parse).
+""",
+]
+
+[[exercises]]
+name = "encodings3"
+dir = "12_encodings"
+test = true
+sanitizers = true
+hints = [
+  """
+Two separate bugs. The first is bitwise2's precondition come true:
+(1u << width) - 1 is undefined at width == 32 (shift by the full type
+width, C11 6.5.7p3) — and THIS contract allows width 32.
+""",
+  """
+Build the mask in a wider type, where << 32 is still in range:
+  (uint32_t)((1ull << width) - 1)
+The 64-bit accumulator in the loop is the same idea already applied.
+""",
+  """
+The second bug: after the loop, up to 7 bits can still be sitting in
+the accumulator. Flush them:
+  if (nbits > 0) out[n++] = acc & 0xFF;
+That's what makes the byte count (count*width + 7) / 8 — the +7 IS
+the partial byte.
+""",
+]

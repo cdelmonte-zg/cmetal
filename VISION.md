@@ -13,7 +13,7 @@ that actually hurt.
 
 ## Where we are
 
-Today clings ships 35 exercises across 12 topics (pointers, memory, UB,
+Today clings ships 38 exercises across 13 topics (pointers, memory, UB,
 strings, structs, function pointers, const, error handling, bitwise), a
 watch-mode TUI with progressive hints, sanitizer-backed verification,
 solutions that unlock only after you solve the exercise, and a
