@@ -153,7 +153,7 @@ fn main() -> Result<()> {
         }
         Some(Commands::List) => commands::list(&state),
         Some(Commands::Verify) => commands::verify(&mut state, &compiler()?, &build_dir)?,
-        Some(Commands::Reset { name: None }) => commands::reset_all(&state, &info, &base_dir)?,
+        Some(Commands::Reset { name: None }) => commands::reset_all(&mut state, &info, &base_dir)?,
     }
 
     Ok(())

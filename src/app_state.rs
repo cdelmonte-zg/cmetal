@@ -13,14 +13,25 @@ const LEGACY_STATE_FILE: &str = ".clings-state.txt";
 /// problem no backup will fix.
 const MAX_DAMAGED_BACKUPS: u32 = 100;
 
+/// Base name for preserved copies of an unreadable progress file.
+///
+/// The writer and the reader both derive from here: deriving one of
+/// them from the literal extension instead would silently stop the
+/// two agreeing the moment STATE_FILE changes, and backups would be
+/// written under names nothing ever lists.
+fn damaged_prefix() -> String {
+    format!("{STATE_FILE}.damaged")
+}
+
 pub struct AppState {
     state_path: PathBuf,
     pub exercises: Vec<Exercise>,
     done: HashSet<String>,
     pub current_index: usize,
-    /// Set when the progress file exists but could not be read. It is
-    /// still on disk untouched; whoever is about to destroy it moves
-    /// it aside first.
+    /// Set when the progress file exists but could not be read, and
+    /// cleared once it has been moved aside. It is still on disk
+    /// untouched until then: whoever is about to destroy it preserves
+    /// it first, exactly once.
     unreadable: bool,
 }
 
@@ -76,7 +87,8 @@ impl AppState {
                 self.unreadable = true;
                 warn(&format!(
                     "Could not read {} ({e}) — starting from empty progress. \
-                     The unreadable file is left in place.",
+                     The file is kept, and moved aside as a .damaged copy \
+                     before anything overwrites it.",
                     self.state_path.display()
                 ));
                 return;
@@ -120,7 +132,7 @@ impl AppState {
     /// listing twenty solved exercises still reads as invalid UTF-8 —
     /// so the copy costs one rename and leaves something to salvage.
     /// A no-op when the file was read fine.
-    fn preserve_if_unreadable(&self) -> Result<()> {
+    fn preserve_if_unreadable(&mut self) -> Result<()> {
         if !self.unreadable {
             return Ok(());
         }
@@ -139,7 +151,12 @@ impl AppState {
                 self.state_path.display(),
                 kept.display()
             )
-        })
+        })?;
+        // Preserved: what sits at state_path from here on is ours, and
+        // must never be filed away as damaged. Cleared only on success,
+        // so a failed rename is retried rather than forgotten.
+        self.unreadable = false;
+        Ok(())
     }
 
     /// The first unused `.damaged` name.
@@ -149,12 +166,10 @@ impl AppState {
     /// older and usually richer one — the exact loss this whole
     /// mechanism exists to prevent.
     fn free_backup_path(&self) -> Option<PathBuf> {
-        let first = self.state_path.with_extension("txt.damaged");
-        if !first.exists() {
-            return Some(first);
-        }
-        (1..MAX_DAMAGED_BACKUPS)
-            .map(|n| self.state_path.with_extension(format!("txt.damaged.{n}")))
+        let dir = self.state_path.parent()?;
+        let prefix = damaged_prefix();
+        std::iter::once(dir.join(&prefix))
+            .chain((1..MAX_DAMAGED_BACKUPS).map(|n| dir.join(format!("{prefix}.{n}"))))
             .find(|candidate| !candidate.exists())
     }
 
@@ -164,7 +179,7 @@ impl AppState {
         let Some(dir) = self.state_path.parent() else {
             return Vec::new();
         };
-        let prefix = format!("{STATE_FILE}.damaged");
+        let prefix = damaged_prefix();
         // A workspace we cannot list simply has no backups to report.
         let Ok(entries) = std::fs::read_dir(dir) else {
             return Vec::new();
@@ -188,7 +203,7 @@ impl AppState {
         found.into_iter().map(|(_, path)| path).collect()
     }
 
-    pub fn save(&self) -> Result<()> {
+    pub fn save(&mut self) -> Result<()> {
         self.preserve_if_unreadable()?;
 
         let current_name = self
@@ -311,7 +326,7 @@ impl AppState {
         }
     }
 
-    pub fn reset(&self) -> Result<()> {
+    pub fn reset(&mut self) -> Result<()> {
         if !self.state_path.exists() {
             return Ok(());
         }
@@ -526,11 +541,100 @@ mod tests {
     #[test]
     fn reset_no_file_is_ok() {
         let tmp = tempfile::tempdir().unwrap();
-        let state = make_state(&["a"], tmp.path());
+        let mut state = make_state(&["a"], tmp.path());
         assert!(state.reset().is_ok());
     }
 
     // --- Name resolution shared by run/hint/solution ---
+
+    // --- Damaged progress files ---
+
+    fn write_damaged(dir: &Path) {
+        std::fs::write(dir.join(STATE_FILE), [0xff, 0xfe, 0x00, b'x']).unwrap();
+    }
+
+    fn damaged_copies(dir: &Path) -> Vec<String> {
+        let mut found: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|n| n.contains("damaged"))
+            .collect();
+        found.sort();
+        found
+    }
+
+    /// The file is preserved once, not once per save. Watch mode saves
+    /// on every navigation keypress, so a flag left set would file the
+    /// learner's own valid progress away as damaged, over and over.
+    #[test]
+    fn repeated_saves_preserve_only_once() {
+        let tmp = tempfile::tempdir().unwrap();
+        write_damaged(tmp.path());
+        let mut state = AppState::new(vec![make_exercise("a")], tmp.path(), |_| {});
+
+        state.save().unwrap();
+        state.save().unwrap();
+        state.save().unwrap();
+
+        assert_eq!(
+            damaged_copies(tmp.path()),
+            vec![".cmetal-state.txt.damaged".to_string()],
+            "only the unreadable file belongs in a .damaged copy"
+        );
+    }
+
+    /// Loading must not move anything: `list`, `hint` and `diff` are
+    /// read-only and have to leave a broken workspace as they found it.
+    #[test]
+    fn loading_leaves_the_damaged_file_in_place() {
+        let tmp = tempfile::tempdir().unwrap();
+        write_damaged(tmp.path());
+        let mut warnings = Vec::new();
+        let _state = AppState::new(vec![make_exercise("a")], tmp.path(), |w| {
+            warnings.push(w.to_string())
+        });
+
+        assert_eq!(warnings.len(), 1, "the learner must be told");
+        assert!(damaged_copies(tmp.path()).is_empty());
+        assert!(tmp.path().join(STATE_FILE).exists());
+    }
+
+    /// A second corruption must not overwrite the first record, which
+    /// is the older and usually richer one.
+    #[test]
+    fn each_corruption_gets_its_own_backup() {
+        let tmp = tempfile::tempdir().unwrap();
+        for _ in 0..2 {
+            write_damaged(tmp.path());
+            let mut state = AppState::new(vec![make_exercise("a")], tmp.path(), |_| {});
+            state.save().unwrap();
+        }
+        assert_eq!(
+            damaged_copies(tmp.path()),
+            vec![
+                ".cmetal-state.txt.damaged".to_string(),
+                ".cmetal-state.txt.damaged.1".to_string()
+            ]
+        );
+    }
+
+    /// Reset clears progress; it must not destroy the one copy of a
+    /// record the learner may still want to read.
+    #[test]
+    fn reset_moves_an_unreadable_file_aside() {
+        let tmp = tempfile::tempdir().unwrap();
+        write_damaged(tmp.path());
+        let mut state = AppState::new(vec![make_exercise("a")], tmp.path(), |_| {});
+
+        state.reset().unwrap();
+
+        assert!(!tmp.path().join(STATE_FILE).exists());
+        assert_eq!(
+            damaged_copies(tmp.path()),
+            vec![".cmetal-state.txt.damaged".to_string()]
+        );
+    }
 
     #[test]
     fn resolve_defaults_to_the_current_exercise() {
