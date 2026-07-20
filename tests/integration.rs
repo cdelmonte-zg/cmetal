@@ -1401,6 +1401,24 @@ fn cli_recovers_from_a_damaged_state_file() {
         std::fs::remove_file(tmp.path().join(".cmetal-state.txt.damaged")).unwrap();
     }
 
+    // A second corruption must not overwrite the first backup: the
+    // older record is usually the richer one.
+    let rich = b"DON'T EDIT THIS FILE!\n\nfoo\n\nfoo\n\xff bad\n";
+    let poor = b"DON'T EDIT THIS FILE!\n\n\n\n\xff bad\n";
+    for content in [rich.as_slice(), poor.as_slice()] {
+        std::fs::write(&state_file, content).unwrap();
+        Command::new(cmetal_bin())
+            .arg("list")
+            .current_dir(tmp.path())
+            .output()
+            .unwrap();
+    }
+
+    let first = std::fs::read(tmp.path().join(".cmetal-state.txt.damaged")).unwrap();
+    let second = std::fs::read(tmp.path().join(".cmetal-state.txt.damaged.1")).unwrap();
+    assert_eq!(first, rich, "the first backup must survive a later one");
+    assert_eq!(second, poor, "the second corruption gets its own name");
+
     // reset is the recovery path: it must clear the damaged file.
     std::fs::write(&state_file, [0xff, 0xfe, 0x00, b'x']).unwrap();
     let output = Command::new(cmetal_bin())
@@ -1411,6 +1429,13 @@ fn cli_recovers_from_a_damaged_state_file() {
     assert!(output.status.success(), "reset should survive it too");
     assert!(
         !state_file.exists(),
-        "reset must remove the damaged progress file"
+        "reset must remove the unreadable progress file"
+    );
+    // reset does not delete the salvageable copies, so it must say so
+    // rather than claim a clean slate.
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("Left in place"),
+        "reset must name the backups it kept, stdout: {}",
+        String::from_utf8_lossy(&output.stdout)
     );
 }

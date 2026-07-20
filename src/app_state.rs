@@ -8,22 +8,30 @@ const STATE_FILE: &str = ".cmetal-state.txt";
 /// name; it is migrated transparently on first load.
 const LEGACY_STATE_FILE: &str = ".clings-state.txt";
 
+/// How many damaged progress files to keep before giving up on
+/// preserving another. A learner who has hit this many corruptions has
+/// a problem no backup will fix.
+const MAX_DAMAGED_BACKUPS: u32 = 100;
+
 pub struct AppState {
     state_path: PathBuf,
     pub exercises: Vec<Exercise>,
     done: HashSet<String>,
     pub current_index: usize,
-    /// Non-fatal problems found while loading. This module does no
-    /// output of its own — the caller decides how and where to report
-    /// them, which keeps `load` testable without capturing a terminal.
-    warnings: Vec<String>,
 }
 
 impl AppState {
     /// Loads the learner's progress. Infallible by construction: a
-    /// progress file that cannot be read is reported as a warning and
-    /// treated as no progress, never as a failure.
-    pub fn new(exercises: Vec<Exercise>, base_dir: &Path) -> Self {
+    /// progress file that cannot be read is reported through `warn`
+    /// and treated as no progress, never as a failure.
+    ///
+    /// `warn` is a parameter rather than a field the caller may read
+    /// afterwards: a warning nobody prints is a learner who silently
+    /// lost their progress, so constructing a state without deciding
+    /// where those warnings go must not be possible. This module does
+    /// no output of its own, which also keeps `load` testable without
+    /// capturing a terminal.
+    pub fn new(exercises: Vec<Exercise>, base_dir: &Path, mut warn: impl FnMut(&str)) -> Self {
         let state_path = base_dir.join(STATE_FILE);
         let legacy = base_dir.join(LEGACY_STATE_FILE);
         if !state_path.exists() && legacy.exists() {
@@ -35,15 +43,9 @@ impl AppState {
             exercises,
             done: HashSet::new(),
             current_index: 0,
-            warnings: Vec::new(),
         };
-        state.load();
+        state.load(&mut warn);
         state
-    }
-
-    /// Problems found while loading, for the caller to report.
-    pub fn warnings(&self) -> &[String] {
-        &self.warnings
     }
 
     /// Reads the progress file, tolerating a damaged one.
@@ -53,7 +55,7 @@ impl AppState {
     /// `reset`, whose whole job is to clear this file — leaving no way out
     /// but deleting it by hand. Warn, start from empty, and let the next
     /// save rewrite it.
-    fn load(&mut self) {
+    fn load(&mut self, warn: &mut impl FnMut(&str)) {
         if !self.state_path.exists() {
             return;
         }
@@ -61,7 +63,7 @@ impl AppState {
         let content = match std::fs::read_to_string(&self.state_path) {
             Ok(content) => content,
             Err(e) => {
-                self.preserve_damaged(e);
+                self.preserve_damaged(e, warn);
                 return;
             }
         };
@@ -102,20 +104,56 @@ impl AppState {
     /// listing twenty solved exercises still reads as invalid UTF-8,
     /// and the next save would replace all of it with one entry. The
     /// copy costs a rename and leaves the learner something to salvage.
-    fn preserve_damaged(&mut self, error: std::io::Error) {
-        let kept = self.state_path.with_extension("txt.damaged");
-        match std::fs::rename(&self.state_path, &kept) {
-            Ok(()) => self.warnings.push(format!(
-                "Could not read {} ({error}) — kept it as {} and started from \
-                 empty progress.",
-                self.state_path.display(),
-                kept.display()
-            )),
-            Err(_) => self.warnings.push(format!(
-                "Could not read {} ({error}) — starting from empty progress.",
-                self.state_path.display()
-            )),
+    fn preserve_damaged(&self, error: std::io::Error, warn: &mut impl FnMut(&str)) {
+        let kept = self
+            .free_backup_path()
+            .filter(|kept| std::fs::rename(&self.state_path, kept).is_ok());
+        let fate = match &kept {
+            Some(kept) => format!("kept it as {} and started", kept.display()),
+            None => "started".to_string(),
+        };
+        warn(&format!(
+            "Could not read {} ({error}) — {fate} from empty progress.",
+            self.state_path.display()
+        ));
+    }
+
+    /// The first unused `.damaged` name.
+    ///
+    /// Never overwrite an existing backup: a second corruption would
+    /// otherwise destroy the record taken for the first, which is the
+    /// older and usually richer one — the exact loss this whole
+    /// mechanism exists to prevent.
+    fn free_backup_path(&self) -> Option<PathBuf> {
+        let first = self.state_path.with_extension("txt.damaged");
+        if !first.exists() {
+            return Some(first);
         }
+        (1..MAX_DAMAGED_BACKUPS)
+            .map(|n| self.state_path.with_extension(format!("txt.damaged.{n}")))
+            .find(|candidate| !candidate.exists())
+    }
+
+    /// Damaged progress files left in the workspace, so commands that
+    /// claim to have cleaned up can say what they did not remove.
+    pub fn damaged_backups(&self) -> Vec<PathBuf> {
+        let Some(dir) = self.state_path.parent() else {
+            return Vec::new();
+        };
+        let prefix = format!("{STATE_FILE}.damaged");
+        let mut found: Vec<PathBuf> = std::fs::read_dir(dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|entry| entry.path())
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with(&prefix))
+            })
+            .collect();
+        found.sort();
+        found
     }
 
     pub fn save(&self) -> Result<()> {
@@ -235,7 +273,6 @@ impl AppState {
             exercises,
             done: HashSet::new(),
             current_index: 0,
-            warnings: Vec::new(),
         }
     }
 
@@ -422,11 +459,13 @@ mod tests {
         state.mark_done("a");
         state.save().unwrap();
 
+        let mut warnings = Vec::new();
         let state2 = AppState::new(
             vec![make_exercise("a"), make_exercise("b"), make_exercise("c")],
             tmp.path(),
+            |w| warnings.push(w.to_string()),
         );
-        assert!(state2.warnings().is_empty(), "a healthy file warns nothing");
+        assert!(warnings.is_empty(), "a healthy file warns nothing");
         assert_eq!(state2.current_index, 1);
         assert!(state2.is_done("a"));
         assert!(!state2.is_done("b"));

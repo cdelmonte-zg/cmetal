@@ -1,5 +1,5 @@
 use crossterm::style::{Attribute, Color, SetAttribute, SetForegroundColor};
-use std::io;
+use std::io::{self, IsTerminal};
 
 pub fn print_success(msg: &str) {
     let mut stdout = io::stdout();
@@ -40,8 +40,15 @@ pub fn print_warning(msg: &str) {
 /// A warning that must not land in stdout: diagnostics about a broken
 /// workspace would otherwise show up in the output of `cmetal list`
 /// and anything piped from it.
+/// Unlike the helpers above it emits no carriage return and no colour
+/// unless stderr is a terminal: this never runs inside watch mode's
+/// raw screen, and stderr is the stream people redirect into logs.
 pub fn warn_stderr(msg: &str) {
     let mut stderr = io::stderr();
+    if !stderr.is_terminal() {
+        eprintln!("warning: {msg}");
+        return;
+    }
     let _ = crossterm::execute!(
         stderr,
         SetForegroundColor(Color::Yellow),
@@ -49,7 +56,7 @@ pub fn warn_stderr(msg: &str) {
     );
     eprint!("  ⚠ ");
     let _ = crossterm::execute!(stderr, SetAttribute(Attribute::Reset));
-    eprintln!("{msg}\r");
+    eprintln!("{msg}");
 }
 
 pub fn print_info(msg: &str) {

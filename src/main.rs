@@ -122,10 +122,7 @@ fn main() -> Result<()> {
     let work_dir = workspace::prepare_workspace(&info, &base_dir)?;
     let exercises = workspace::load_exercises(&info, &base_dir, &work_dir, compiler_kind);
     let build_dir = base_dir.join("target").join("cmetal");
-    let mut state = AppState::new(exercises, &base_dir);
-    for warning in state.warnings() {
-        term::warn_stderr(warning);
-    }
+    let mut state = AppState::new(exercises, &base_dir, term::warn_stderr);
 
     // The C toolchain is NOT part of that: `list`, `hint` and `reset`
     // compile nothing, and probing for a compiler they will never use

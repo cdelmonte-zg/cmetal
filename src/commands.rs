@@ -225,6 +225,16 @@ pub fn reset_all(state: &AppState, info: &InfoFile, base_dir: &Path) -> Result<(
     workspace::restore_workspace(info, base_dir)?;
     println!();
     term::print_success("Progress reset. Workspace restored to pristine exercises!");
+    // Saying "reset" while leaving files behind would be a lie, and
+    // these are the one thing here worth salvaging — so name them
+    // rather than delete them.
+    for kept in state.damaged_backups() {
+        term::print_info(&format!(
+            "Left in place: {} (unreadable progress from an earlier run — \
+             delete it once you no longer need it).",
+            kept.display()
+        ));
+    }
     println!();
     Ok(())
 }
@@ -326,11 +336,7 @@ fn state_without_compiler(
 ) -> AppState {
     let work_dir = workspace::work_dir(base_dir);
     let exercises = workspace::load_exercises(info, base_dir, &work_dir, compiler_kind);
-    let state = AppState::new(exercises, base_dir);
-    for warning in state.warnings() {
-        term::warn_stderr(warning);
-    }
-    state
+    AppState::new(exercises, base_dir, term::warn_stderr)
 }
 
 /// Writes to stdout, tolerating ONLY a closed pipe (`cmetal diff x |
