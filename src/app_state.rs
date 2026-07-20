@@ -2,6 +2,7 @@ use crate::exercise::Exercise;
 use anyhow::{Context, Result};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 const STATE_FILE: &str = ".cmetal-state.txt";
 /// Pre-rename workspaces (the project was called clings) used this
@@ -18,9 +19,25 @@ const MAX_DAMAGED_BACKUPS: u32 = 100;
 /// The writer and the reader both derive from here: deriving one of
 /// them from the literal extension instead would silently stop the
 /// two agreeing the moment STATE_FILE changes, and backups would be
-/// written under names nothing ever lists.
-fn damaged_prefix() -> String {
-    format!("{STATE_FILE}.damaged")
+/// written under names nothing ever lists. Computed once — it cannot
+/// vary at runtime, and saying so spares the reader the question.
+static DAMAGED_PREFIX: LazyLock<String> = LazyLock::new(|| format!("{STATE_FILE}.damaged"));
+
+/// What happened to the progress file on disk.
+///
+/// The three cases used to share a `bool`, which is how a preserved
+/// file could be preserved again and valid progress ended up filed
+/// away as damaged. Kept as distinct states so that transition is not
+/// expressible rather than merely tested for.
+#[derive(Debug, PartialEq, Eq)]
+enum ProgressFile {
+    /// Read successfully, or not there at all.
+    Loaded,
+    /// Exists but could not be read. Still on disk, untouched.
+    Unreadable,
+    /// Was unreadable and has been moved aside; what sits at
+    /// `state_path` from here on is ours.
+    Preserved,
 }
 
 pub struct AppState {
@@ -28,11 +45,7 @@ pub struct AppState {
     pub exercises: Vec<Exercise>,
     done: HashSet<String>,
     pub current_index: usize,
-    /// Set when the progress file exists but could not be read, and
-    /// cleared once it has been moved aside. It is still on disk
-    /// untouched until then: whoever is about to destroy it preserves
-    /// it first, exactly once.
-    unreadable: bool,
+    progress_file: ProgressFile,
 }
 
 impl AppState {
@@ -58,7 +71,7 @@ impl AppState {
             exercises,
             done: HashSet::new(),
             current_index: 0,
-            unreadable: false,
+            progress_file: ProgressFile::Loaded,
         };
         state.load(&mut warn);
         state
@@ -84,11 +97,12 @@ impl AppState {
                 // must leave a broken workspace exactly as they found
                 // it. `save` and `reset` preserve it when they are
                 // about to destroy it.
-                self.unreadable = true;
+                self.progress_file = ProgressFile::Unreadable;
                 warn(&format!(
                     "Could not read {} ({e}) — starting from empty progress. \
-                     The file is kept, and moved aside as a .damaged copy \
-                     before anything overwrites it.",
+                     The file is kept and will be moved aside as a .damaged \
+                     copy the first time progress is written; run \
+                     `cmetal reset` to do that now.",
                     self.state_path.display()
                 ));
                 return;
@@ -133,7 +147,7 @@ impl AppState {
     /// so the copy costs one rename and leaves something to salvage.
     /// A no-op when the file was read fine.
     fn preserve_if_unreadable(&mut self) -> Result<()> {
-        if !self.unreadable {
+        if self.progress_file != ProgressFile::Unreadable {
             return Ok(());
         }
         let kept = self.free_backup_path().with_context(|| {
@@ -152,10 +166,9 @@ impl AppState {
                 kept.display()
             )
         })?;
-        // Preserved: what sits at state_path from here on is ours, and
-        // must never be filed away as damaged. Cleared only on success,
-        // so a failed rename is retried rather than forgotten.
-        self.unreadable = false;
+        // Only on success, so a failed rename is retried rather than
+        // forgotten.
+        self.progress_file = ProgressFile::Preserved;
         Ok(())
     }
 
@@ -167,8 +180,8 @@ impl AppState {
     /// mechanism exists to prevent.
     fn free_backup_path(&self) -> Option<PathBuf> {
         let dir = self.state_path.parent()?;
-        let prefix = damaged_prefix();
-        std::iter::once(dir.join(&prefix))
+        let prefix = &*DAMAGED_PREFIX;
+        std::iter::once(dir.join(prefix))
             .chain((1..MAX_DAMAGED_BACKUPS).map(|n| dir.join(format!("{prefix}.{n}"))))
             .find(|candidate| !candidate.exists())
     }
@@ -179,7 +192,7 @@ impl AppState {
         let Some(dir) = self.state_path.parent() else {
             return Vec::new();
         };
-        let prefix = damaged_prefix();
+        let prefix = &*DAMAGED_PREFIX;
         // A workspace we cannot list simply has no backups to report.
         let Ok(entries) = std::fs::read_dir(dir) else {
             return Vec::new();
@@ -189,7 +202,7 @@ impl AppState {
             .filter_map(|entry| {
                 let path = entry.path();
                 let name = path.file_name()?.to_str()?.to_owned();
-                let suffix = name.strip_prefix(&prefix)?;
+                let suffix = name.strip_prefix(prefix.as_str())?;
                 // Order by the number the names promise, not by their
                 // bytes: lexicographically `.10` sorts before `.2`.
                 let n = match suffix {
@@ -322,21 +335,28 @@ impl AppState {
             exercises,
             done: HashSet::new(),
             current_index: 0,
-            unreadable: false,
+            progress_file: ProgressFile::Loaded,
         }
     }
 
     pub fn reset(&mut self) -> Result<()> {
-        if !self.state_path.exists() {
-            return Ok(());
+        if self.state_path.exists() {
+            // An unreadable file is moved aside rather than deleted:
+            // the learner asked to clear their progress, not to destroy
+            // the only copy of a record they may still want to read.
+            if self.progress_file == ProgressFile::Unreadable {
+                self.preserve_if_unreadable()?;
+            } else {
+                std::fs::remove_file(&self.state_path)
+                    .with_context(|| "Failed to remove state file")?;
+            }
         }
-        // An unreadable file is moved aside rather than deleted: the
-        // learner asked to clear their progress, not to destroy the
-        // only copy of a record they may still want to read.
-        if self.unreadable {
-            return self.preserve_if_unreadable();
-        }
-        std::fs::remove_file(&self.state_path).with_context(|| "Failed to remove state file")
+        // The file is gone, so the object must not still hold what it
+        // held: a later save would otherwise write back the very
+        // progress this just cleared.
+        self.done.clear();
+        self.current_index = 0;
+        Ok(())
     }
 }
 
@@ -553,15 +573,15 @@ mod tests {
         std::fs::write(dir.join(STATE_FILE), [0xff, 0xfe, 0x00, b'x']).unwrap();
     }
 
-    fn damaged_copies(dir: &Path) -> Vec<String> {
-        let mut found: Vec<String> = std::fs::read_dir(dir)
-            .unwrap()
-            .flatten()
-            .map(|e| e.file_name().to_string_lossy().to_string())
-            .filter(|n| n.contains("damaged"))
-            .collect();
-        found.sort();
-        found
+    /// Backup names as the production code reports them, so the tests
+    /// pin what a learner is actually told rather than a second
+    /// implementation of the same scan.
+    fn damaged_copies(state: &AppState) -> Vec<String> {
+        state
+            .damaged_backups()
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
+            .collect()
     }
 
     /// The file is preserved once, not once per save. Watch mode saves
@@ -578,7 +598,7 @@ mod tests {
         state.save().unwrap();
 
         assert_eq!(
-            damaged_copies(tmp.path()),
+            damaged_copies(&state),
             vec![".cmetal-state.txt.damaged".to_string()],
             "only the unreadable file belongs in a .damaged copy"
         );
@@ -591,12 +611,17 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         write_damaged(tmp.path());
         let mut warnings = Vec::new();
-        let _state = AppState::new(vec![make_exercise("a")], tmp.path(), |w| {
+        let state = AppState::new(vec![make_exercise("a")], tmp.path(), |w| {
             warnings.push(w.to_string())
         });
 
         assert_eq!(warnings.len(), 1, "the learner must be told");
-        assert!(damaged_copies(tmp.path()).is_empty());
+        assert!(
+            warnings[0].contains("cmetal reset"),
+            "the warning must say how to clear it: {}",
+            warnings[0]
+        );
+        assert!(damaged_copies(&state).is_empty());
         assert!(tmp.path().join(STATE_FILE).exists());
     }
 
@@ -605,13 +630,15 @@ mod tests {
     #[test]
     fn each_corruption_gets_its_own_backup() {
         let tmp = tempfile::tempdir().unwrap();
+        let mut state = None;
         for _ in 0..2 {
             write_damaged(tmp.path());
-            let mut state = AppState::new(vec![make_exercise("a")], tmp.path(), |_| {});
-            state.save().unwrap();
+            let mut fresh = AppState::new(vec![make_exercise("a")], tmp.path(), |_| {});
+            fresh.save().unwrap();
+            state = Some(fresh);
         }
         assert_eq!(
-            damaged_copies(tmp.path()),
+            damaged_copies(state.as_ref().unwrap()),
             vec![
                 ".cmetal-state.txt.damaged".to_string(),
                 ".cmetal-state.txt.damaged.1".to_string()
@@ -631,8 +658,42 @@ mod tests {
 
         assert!(!tmp.path().join(STATE_FILE).exists());
         assert_eq!(
-            damaged_copies(tmp.path()),
+            damaged_copies(&state),
             vec![".cmetal-state.txt.damaged".to_string()]
+        );
+    }
+
+    /// Reset clears the object too. Deleting the file while the state
+    /// still holds every completion means the next save writes back
+    /// exactly what was just cleared.
+    #[test]
+    fn reset_clears_progress_in_memory() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut state = make_state(&["a", "b"], tmp.path());
+        state.mark_done("a");
+        state.current_index = 1;
+        state.save().unwrap();
+
+        state.reset().unwrap();
+
+        assert!(!state.is_done("a"), "progress must not survive a reset");
+        assert_eq!(state.current_index, 0);
+        assert_eq!(state.progress(), (0, 2));
+
+        // The proof that it matters: saving now must not resurrect it.
+        // The file is header, blank, current exercise, blank, then one
+        // line per completion — so the completions are what follows.
+        state.save().unwrap();
+        let written = std::fs::read_to_string(tmp.path().join(STATE_FILE)).unwrap();
+        let completions: Vec<&str> = written
+            .lines()
+            .skip(4)
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .collect();
+        assert!(
+            completions.is_empty(),
+            "a save after reset wrote back the cleared progress: {completions:?}"
         );
     }
 
