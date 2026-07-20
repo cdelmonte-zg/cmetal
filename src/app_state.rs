@@ -10,39 +10,25 @@ const STATE_FILE: &str = ".cmetal-state.txt";
 const LEGACY_STATE_FILE: &str = ".clings-state.txt";
 
 /// Distinct `.damaged` names to try: the unsuffixed one plus `.1`
-/// through `.99`. A learner who has hit a hundred corruptions has a
-/// problem no backup will fix.
+/// through `.99`.
 const MAX_DAMAGED_BACKUPS: u32 = 100;
 
 /// Base name for preserved copies of an unreadable progress file.
-///
-/// The writer and the reader both derive from here: deriving one of
-/// them from the literal extension instead would silently stop the
-/// two agreeing the moment STATE_FILE changes, and backups would be
-/// written under names nothing ever lists. Computed once — it cannot
-/// vary at runtime, and saying so spares the reader the question.
+/// Both the writer and the reader derive from here, so they cannot
+/// disagree if STATE_FILE changes.
 static DAMAGED_PREFIX: LazyLock<String> = LazyLock::new(|| format!("{STATE_FILE}.damaged"));
 
 /// What happened to the progress file on disk.
-///
-/// The three cases used to share a `bool`, which is how a preserved
-/// file could be preserved again and valid progress ended up filed
-/// away as damaged. Kept as distinct states so that transition is not
-/// expressible rather than merely tested for.
 #[derive(PartialEq, Eq)]
 enum ProgressFile {
     /// Read successfully, or not there at all.
     Loaded,
-    /// Exists but could not be read. Still on disk, untouched.
+    /// Exists but could not be read. The original is still on disk and
+    /// must be preserved before anything writes over it.
     Unreadable,
-    /// Was unreadable and has been moved aside; what sits at
-    /// `state_path` from here on is ours.
-    ///
-    /// Deliberately not branched on: it behaves like `Loaded`, and
-    /// exists so that leaving `Unreadable` is a state change the type
-    /// records rather than a flag someone must remember to clear.
-    /// That omission is what once filed valid progress away as damaged
-    /// on every save.
+    /// Was unreadable and has been moved aside. Behaves like `Loaded`;
+    /// it is a distinct state so that leaving `Unreadable` is a
+    /// transition the type records rather than a flag to clear.
     Preserved,
 }
 
@@ -55,16 +41,13 @@ pub struct AppState {
 }
 
 impl AppState {
-    /// Loads the learner's progress. Infallible by construction: a
-    /// progress file that cannot be read is reported through `warn`
-    /// and treated as no progress, never as a failure.
+    /// Loads the learner's progress. Infallible: a progress file that
+    /// cannot be read is reported through `warn` and treated as no
+    /// progress, never as a failure.
     ///
-    /// `warn` is a parameter rather than a field the caller may read
-    /// afterwards: a warning nobody prints is a learner who silently
-    /// lost their progress, so constructing a state without deciding
-    /// where those warnings go must not be possible. This module does
-    /// no output of its own, which also keeps `load` testable without
-    /// capturing a terminal.
+    /// `warn` is a parameter so that a state cannot be constructed
+    /// without deciding where its warnings go, and so this module does
+    /// no output of its own.
     pub fn new(exercises: Vec<Exercise>, base_dir: &Path, mut warn: impl FnMut(&str)) -> Self {
         let state_path = base_dir.join(STATE_FILE);
         let legacy = base_dir.join(LEGACY_STATE_FILE);
@@ -83,13 +66,9 @@ impl AppState {
         state
     }
 
-    /// Reads the progress file, tolerating a damaged one.
-    ///
-    /// An unreadable state file is lost progress, not a fatal error.
-    /// Making it fatal locked the learner out of every command — including
-    /// `reset`, whose whole job is to clear this file — leaving no way out
-    /// but deleting it by hand. Warn, start from empty, and let the next
-    /// save rewrite it.
+    /// Reads the progress file, tolerating a damaged one: unreadable
+    /// progress is lost progress, not a fatal error, or a broken file
+    /// would lock the learner out of every command including `reset`.
     fn load(&mut self, warn: &mut impl FnMut(&str)) {
         if !self.state_path.exists() {
             return;
@@ -98,11 +77,9 @@ impl AppState {
         let content = match std::fs::read_to_string(&self.state_path) {
             Ok(content) => content,
             Err(e) => {
-                // Left in place on purpose. Reading is not the moment
-                // to move a learner's file: `list`, `hint` and `diff`
-                // must leave a broken workspace exactly as they found
-                // it. `save` and `reset` preserve it when they are
-                // about to destroy it.
+                // Left in place: read-only commands must leave a
+                // broken workspace as they found it. `save` and
+                // `reset` preserve it before they overwrite it.
                 self.progress_file = ProgressFile::Unreadable;
                 warn(&format!(
                     "Could not read {} ({e}) — starting from empty progress. \
@@ -144,14 +121,10 @@ impl AppState {
         }
     }
 
-    /// Moves an unreadable progress file aside, so the caller can
-    /// destroy what is at `state_path` without destroying the only
-    /// copy of the learner's record.
-    ///
-    /// Corruption is usually partial — a few mangled bytes in a file
-    /// listing twenty solved exercises still reads as invalid UTF-8 —
-    /// so the copy costs one rename and leaves something to salvage.
-    /// A no-op when the file was read fine.
+    /// Moves an unreadable progress file aside so the caller can write
+    /// over `state_path` without destroying the only copy of it.
+    /// Corruption is usually partial, so the rename leaves the learner
+    /// something to salvage. A no-op unless the file is `Unreadable`.
     fn preserve_if_unreadable(&mut self) -> Result<()> {
         if self.progress_file != ProgressFile::Unreadable {
             return Ok(());
@@ -172,18 +145,13 @@ impl AppState {
                 kept.display()
             )
         })?;
-        // Only on success, so a failed rename is retried rather than
-        // forgotten.
+        // Only on success: a failed rename must be retried.
         self.progress_file = ProgressFile::Preserved;
         Ok(())
     }
 
-    /// The first unused `.damaged` name.
-    ///
-    /// Never overwrite an existing backup: a second corruption would
-    /// otherwise destroy the record taken for the first, which is the
-    /// older and usually richer one — the exact loss this whole
-    /// mechanism exists to prevent.
+    /// The first unused `.damaged` name. Never overwrites an existing
+    /// backup: the older record is the one worth keeping.
     fn free_backup_path(&self) -> Option<PathBuf> {
         let dir = self.state_path.parent()?;
         let prefix = &*DAMAGED_PREFIX;
@@ -357,9 +325,8 @@ impl AppState {
                     .with_context(|| "Failed to remove state file")?;
             }
         }
-        // The file is gone, so the object must not still hold what it
-        // held: a later save would otherwise write back the very
-        // progress this just cleared.
+        // The file is gone, so the object must not still hold it, or a
+        // later save writes the cleared progress back.
         self.done.clear();
         self.current_index = 0;
         Ok(())
@@ -590,14 +557,9 @@ mod tests {
             .collect()
     }
 
-    /// The warning must recommend no cmetal command at all.
-    ///
-    /// It once said to run `cmetal reset`, which overwrites every
-    /// working copy with the pristine exercise — hours of the
-    /// learner's code, to tidy away a file that costs nothing to
-    /// leave alone. The tool cannot know which commands are safe for
-    /// the state they are in, so the only remedies it may offer here
-    /// are inert ones: delete the file, or do nothing.
+    /// The warning must recommend no cmetal command at all: the tool
+    /// cannot know which are safe for the state the learner is in, so
+    /// the only remedies it offers here are inert ones.
     #[test]
     fn the_damaged_file_warning_recommends_nothing_destructive() {
         let tmp = tempfile::tempdir().unwrap();
@@ -615,9 +577,8 @@ mod tests {
         );
     }
 
-    /// The file is preserved once, not once per save. Watch mode saves
-    /// on every navigation keypress, so a flag left set would file the
-    /// learner's own valid progress away as damaged, over and over.
+    /// Preserved once, not once per save — watch mode saves on every
+    /// navigation keypress.
     #[test]
     fn repeated_saves_preserve_only_once() {
         let tmp = tempfile::tempdir().unwrap();
@@ -694,9 +655,8 @@ mod tests {
         );
     }
 
-    /// Reset clears the object too. Deleting the file while the state
-    /// still holds every completion means the next save writes back
-    /// exactly what was just cleared.
+    /// Reset clears the object too, or the next save writes back the
+    /// completions it just deleted.
     #[test]
     fn reset_clears_progress_in_memory() {
         let tmp = tempfile::tempdir().unwrap();

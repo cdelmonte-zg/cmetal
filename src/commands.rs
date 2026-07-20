@@ -251,10 +251,8 @@ pub fn reset_all(
 /// Overwrites working copies, never silently.
 ///
 /// Every command that discards a learner's code goes through here, so
-/// the notice lives with the destruction rather than with whichever
-/// command was reviewed last — `reset` and `reset <name>` cannot drift
-/// apart on how dangerous they admit to being. Returns false when the
-/// learner declined, in which case nothing was touched.
+/// the notice lives with the destruction and no path can skip it.
+/// Returns false when the learner declined; nothing was touched.
 fn restore_with_consent(base_dir: &Path, targets: &[&ExerciseInfo], force: bool) -> Result<bool> {
     let edited = workspace::edited_among(base_dir, targets.iter().copied());
     if !edited.is_empty() {

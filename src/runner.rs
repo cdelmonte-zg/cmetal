@@ -1,9 +1,7 @@
 //! What "running an exercise" means — the decision, and nothing else.
 //!
-//! This ladder used to be copied in four places (watch mode, `run`,
-//! `verify`, and the gate in `solution`), which is how their wording
-//! drifted apart. It now exists once, and it never prints: rendering
-//! lives in [`crate::view`], so the decision can be unit-tested without
+//! The ladder exists once and never prints: rendering lives in
+//! [`crate::view`], so the decision can be unit-tested without
 //! capturing stdout.
 //!
 //! Two things deliberately stay with the caller. *Presentation* varies
@@ -17,11 +15,9 @@ use crate::exercise::{Exercise, VerifyResult};
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 
-/// The verdict on one exercise.
-///
-/// Every variant is a statement *about the exercise*. A failure of the
-/// tooling itself is not one of them: [`evaluate`] returns `Err` for
-/// that, so a broken toolchain never masquerades as a wrong answer.
+/// The verdict on one exercise. Every variant is a statement *about
+/// the exercise*; a failure of the tooling is not one of them, so
+/// [`evaluate`] returns `Err` for that instead.
 #[derive(Debug)]
 pub enum RunStatus {
     Passed(VerifyResult),
@@ -58,11 +54,10 @@ pub fn evaluate(exercise: &Exercise, compiler: &Compiler, build_dir: &Path) -> R
 /// Writes the official solution into `my_solutions/` once the exercise
 /// is solved, returning where it landed.
 ///
-/// This lives next to the decision rather than in [`crate::view`] on
-/// purpose: it touches the filesystem, and rendering must stay free of
-/// side effects so a status can be shown twice without writing twice.
-/// A missing or undecodable solution is not worth interrupting a pass
-/// for, so the failure is folded into `None`.
+/// Not in [`crate::view`]: it touches the filesystem, and rendering
+/// must stay free of side effects so a status can be shown twice
+/// without writing twice. A missing solution is folded into `None`
+/// rather than interrupting a pass.
 pub fn reveal_if_passed(exercise: &Exercise, status: &RunStatus) -> Option<PathBuf> {
     if !status.passed() {
         return None;
