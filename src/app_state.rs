@@ -161,8 +161,35 @@ impl AppState {
         (done, supported.len())
     }
 
-    pub fn find_exercise(&self, name: &str) -> Option<usize> {
+    fn find_exercise(&self, name: &str) -> Option<usize> {
         self.exercises.iter().position(|e| e.name() == name)
+    }
+
+    /// Resolves the exercise a command should act on: the one named, or
+    /// the current one when the argument is omitted. Every name-taking
+    /// command shares this so they agree on both the default and the
+    /// error message.
+    pub fn resolve(&self, name: Option<String>) -> Result<usize> {
+        let name = name.unwrap_or_else(|| {
+            self.current_exercise()
+                .map(|e| e.name().to_string())
+                .unwrap_or_default()
+        });
+        self.find_exercise(&name)
+            .with_context(|| format!("Exercise '{name}' not found"))
+    }
+
+    /// Builds a state directly from parts, bypassing the on-disk
+    /// progress file. Test-only: lets other modules' tests exercise
+    /// logic that reads a state without staging a workspace.
+    #[cfg(test)]
+    pub(crate) fn from_parts(exercises: Vec<Exercise>, base_dir: &Path) -> Self {
+        Self {
+            state_path: base_dir.join(STATE_FILE),
+            exercises,
+            done: HashSet::new(),
+            current_index: 0,
+        }
     }
 
     pub fn reset(&self) -> Result<()> {
@@ -211,12 +238,7 @@ mod tests {
 
     fn make_state(names: &[&str], base_dir: &Path) -> AppState {
         let exercises: Vec<Exercise> = names.iter().map(|n| make_exercise(n)).collect();
-        AppState {
-            state_path: base_dir.join(STATE_FILE),
-            exercises,
-            done: HashSet::new(),
-            current_index: 0,
-        }
+        AppState::from_parts(exercises, base_dir)
     }
 
     // --- Compiler support ---
@@ -380,5 +402,31 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let state = make_state(&["a"], tmp.path());
         assert!(state.reset().is_ok());
+    }
+
+    // --- Name resolution shared by run/hint/solution ---
+
+    #[test]
+    fn resolve_defaults_to_the_current_exercise() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut state = make_state(&["a", "b", "c"], tmp.path());
+        state.current_index = 2;
+        assert_eq!(state.resolve(None).unwrap(), 2);
+    }
+
+    #[test]
+    fn resolve_finds_by_name_regardless_of_current() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut state = make_state(&["a", "b", "c"], tmp.path());
+        state.current_index = 0;
+        assert_eq!(state.resolve(Some("b".to_string())).unwrap(), 1);
+    }
+
+    #[test]
+    fn resolve_reports_the_missing_name() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = make_state(&["a"], tmp.path());
+        let err = state.resolve(Some("nope".to_string())).unwrap_err();
+        assert_eq!(err.to_string(), "Exercise 'nope' not found");
     }
 }

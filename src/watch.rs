@@ -1,6 +1,8 @@
 use crate::app_state::AppState;
 use crate::compiler::Compiler;
+use crate::runner::{self, RunStatus};
 use crate::term;
+use crate::view;
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
@@ -261,21 +263,12 @@ pub fn run_watch(
                 term::print_header("Exercises:");
                 println!("\r");
                 for (i, ex) in state.exercises.iter().enumerate() {
-                    let status = if state.is_done(ex.name()) {
-                        "✓"
-                    } else if !ex.supported {
-                        "−"
-                    } else if i == state.current_index {
-                        "→"
-                    } else {
-                        " "
-                    };
-                    let note = if ex.supported {
-                        String::new()
-                    } else {
-                        format!("  (requires {})", ex.required_compilers())
-                    };
-                    println!("  {status} {}{note}\r", ex.name());
+                    println!(
+                        "  {} {}{}\r",
+                        view::status_marker(state, i, ex),
+                        ex.name(),
+                        view::compiler_note(ex)
+                    );
                 }
                 println!("\r");
                 print_watch_commands();
@@ -342,56 +335,29 @@ fn run_current_exercise(state: &AppState, compiler: &Compiler, build_dir: &Path)
     println!("  File: {}\r", exercise.path.display());
     println!("\r");
 
-    if !exercise.supported {
-        term::print_warning(&format!(
-            "This exercise requires {} (current compiler: {}).",
-            exercise.required_compilers(),
-            compiler.kind()
-        ));
-        term::print_info("Press 'n' to skip it, or restart cmetal with --compiler.");
-        return false;
-    }
-
-    if !exercise.exists() {
-        term::print_error(&format!(
-            "Exercise file not found: {}",
-            exercise.path.display()
-        ));
-        return false;
-    }
-
-    match exercise.verify(compiler, build_dir) {
-        Ok(result) => {
-            if result.success {
-                term::print_success(&format!(
-                    "{} compiled and ran successfully!",
-                    exercise.name()
-                ));
-                if !result.output.is_empty() {
-                    term::print_stage_output("Program", &result.output);
-                }
-                println!("\r");
-                if let Ok(path) = exercise.reveal_solution() {
-                    term::print_info(&format!(
-                        "Official solution revealed: {} — compare it with yours!",
-                        path.display()
-                    ));
-                }
-                term::print_info("Press 'n' to move to the next exercise.");
-                true
-            } else {
-                term::print_error(&format!(
-                    "{} failed at stage: {}",
-                    exercise.name(),
-                    result.stage
-                ));
-                term::print_stage_output(result.stage, &result.output);
-                false
-            }
-        }
+    // Watch mode never propagates: a broken toolchain must not tear
+    // down the alternate screen mid-session, so it is reported like
+    // any other bad news and the loop keeps running.
+    let status = match runner::evaluate(exercise, compiler, build_dir) {
+        Ok(status) => status,
         Err(e) => {
-            term::print_error(&format!("Error verifying {}: {e}", exercise.name()));
-            false
+            term::print_error(&format!("Error verifying {}: {e:#}", exercise.name()));
+            return false;
         }
+    };
+    view::report_outcome(exercise, compiler, &status);
+
+    // Navigation advice is watch-specific, so it stays here rather than
+    // in the shared reporter.
+    match &status {
+        RunStatus::Passed(_) => {
+            term::print_info("Press 'n' to move to the next exercise.");
+        }
+        RunStatus::Unsupported => {
+            term::print_info("Press 'n' to skip it, or restart cmetal with --compiler.");
+        }
+        _ => {}
     }
+
+    status.passed()
 }

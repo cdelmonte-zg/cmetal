@@ -13,16 +13,14 @@ fn has_gcc() -> bool {
         .unwrap_or(false)
 }
 
-/// Build the cmetal binary path (debug target).
+/// Path to the cmetal binary built for THIS test run.
+///
+/// Cargo sets CARGO_BIN_EXE_<name> for integration tests precisely so
+/// the test cannot end up invoking a stale or foreign binary; deriving
+/// the path from current_exe() by hand also broke under --target and a
+/// custom CARGO_TARGET_DIR.
 fn cmetal_bin() -> std::path::PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    // test binary is in target/debug/deps/, cmetal binary is in target/debug/
-    path.pop(); // remove test binary name
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.push("cmetal");
-    path
+    std::path::PathBuf::from(env!("CARGO_BIN_EXE_cmetal"))
 }
 
 /// Overwrite a workspace manifest with a given curriculum version.
@@ -36,7 +34,17 @@ fn stamp_manifest(ws: &Path, version: &str) {
 
 /// Create a minimal cmetal project in a temp directory.
 fn setup_project(tmp: &Path, exercises: &[(&str, &str, &str)]) {
-    // exercises: [(name, dir, c_code)]
+    let with_compilers: Vec<_> = exercises
+        .iter()
+        .map(|(n, d, c)| (*n, *d, *c, None))
+        .collect();
+    setup_project_with(tmp, &with_compilers);
+}
+
+/// Like `setup_project`, but each exercise may pin a `compilers` list —
+/// the only way to reach the "requires another compiler" paths.
+fn setup_project_with(tmp: &Path, exercises: &[(&str, &str, &str, Option<&str>)]) {
+    // exercises: [(name, dir, c_code, compilers)]
     let include_dir = tmp.join("include");
     std::fs::create_dir_all(&include_dir).unwrap();
     std::fs::copy(
@@ -46,10 +54,14 @@ fn setup_project(tmp: &Path, exercises: &[(&str, &str, &str)]) {
     .unwrap();
 
     let mut toml = String::from("format_version = 1\n\n");
-    for (name, dir, code) in exercises {
+    for (name, dir, code, compilers) in exercises {
         toml.push_str(&format!(
-            "[[exercises]]\nname = \"{name}\"\ndir = \"{dir}\"\ntest = false\nsanitizers = false\n\n"
+            "[[exercises]]\nname = \"{name}\"\ndir = \"{dir}\"\ntest = false\nsanitizers = false\n"
         ));
+        if let Some(list) = compilers {
+            toml.push_str(&format!("compilers = [\"{list}\"]\n"));
+        }
+        toml.push('\n');
 
         let ex_dir = tmp.join("exercises").join(dir);
         std::fs::create_dir_all(&ex_dir).unwrap();
@@ -980,5 +992,181 @@ hints = ["Try using printf", "Check the return value"]
     assert!(
         stdout.contains("Try using printf"),
         "hint should show hint text, got: {stdout}"
+    );
+}
+
+// ---- `run`: outcome -> exit code contract ----
+//
+// These pin the mapping the whole CLI composes on: a pass is 0, a
+// wrong answer is 1, a missing file is 1, and an exercise this
+// compiler cannot judge is *not* a failure.
+
+#[test]
+fn cli_run_exits_zero_on_pass() {
+    if !has_gcc() {
+        eprintln!("skipping: gcc not available");
+        return;
+    }
+    let tmp = TempDir::new().unwrap();
+    setup_project(
+        tmp.path(),
+        &[(
+            "ok",
+            "00_intro",
+            "#include <stdio.h>\nint main(void) { printf(\"hello\\n\"); return 0; }\n",
+        )],
+    );
+
+    let output = Command::new(cmetal_bin())
+        .args(["run", "ok"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(output.status.success(), "expected exit 0, stdout: {stdout}");
+    // The stage label must not stutter: print_stage_output already
+    // appends the word "output".
+    assert!(
+        stdout.contains("Program output"),
+        "expected a 'Program output' section, got: {stdout}"
+    );
+    assert!(
+        !stdout.contains("Output output"),
+        "stage label stutters: {stdout}"
+    );
+}
+
+#[test]
+fn cli_run_exits_one_on_failing_exercise() {
+    if !has_gcc() {
+        eprintln!("skipping: gcc not available");
+        return;
+    }
+    let tmp = TempDir::new().unwrap();
+    setup_project(
+        tmp.path(),
+        &[("bad", "00_intro", "int main(void) { return 1; }\n")],
+    );
+
+    let output = Command::new(cmetal_bin())
+        .args(["run", "bad"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "a failing exercise must exit 1, stdout: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn cli_run_exits_one_when_the_file_is_gone() {
+    if !has_gcc() {
+        eprintln!("skipping: gcc not available");
+        return;
+    }
+    let tmp = TempDir::new().unwrap();
+    setup_project(
+        tmp.path(),
+        &[("ghost", "00_intro", "int main(void) { return 0; }\n")],
+    );
+    // Both copies must go: prepare_workspace recreates the working
+    // copy from the pristine file on every startup.
+    std::fs::remove_file(tmp.path().join("exercises/00_intro/ghost.c")).unwrap();
+
+    let output = Command::new(cmetal_bin())
+        .args(["run", "ghost"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert_eq!(output.status.code(), Some(1), "stdout: {stdout}");
+    assert!(
+        stdout.contains("not found"),
+        "expected a missing-file message, got: {stdout}"
+    );
+}
+
+#[test]
+fn cli_run_skips_exercises_for_another_compiler() {
+    if !has_gcc() {
+        eprintln!("skipping: gcc not available");
+        return;
+    }
+    let tmp = TempDir::new().unwrap();
+    setup_project_with(
+        tmp.path(),
+        &[(
+            "clang_only",
+            "00_intro",
+            "int main(void) { return 0; }\n",
+            Some("clang"),
+        )],
+    );
+
+    let output = Command::new(cmetal_bin())
+        .args(["--compiler", "gcc", "run", "clang_only"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Skipped is not failed: the learner asked for an exercise this
+    // compiler cannot judge and was told so.
+    assert!(
+        output.status.success(),
+        "an unsupported exercise must not fail the command, stdout: {stdout}"
+    );
+    assert!(
+        stdout.contains("requires clang"),
+        "expected the required compiler to be named, got: {stdout}"
+    );
+}
+
+#[test]
+fn cli_list_shows_status_glyphs() {
+    if !has_gcc() {
+        eprintln!("skipping: gcc not available");
+        return;
+    }
+    let tmp = TempDir::new().unwrap();
+    setup_project_with(
+        tmp.path(),
+        &[
+            ("solved", "00_intro", "int main(void) { return 0; }\n", None),
+            (
+                "skipped",
+                "00_intro",
+                "int main(void) { return 0; }\n",
+                Some("clang"),
+            ),
+        ],
+    );
+
+    Command::new(cmetal_bin())
+        .args(["run", "solved"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    let output = Command::new(cmetal_bin())
+        .arg("list")
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("✓ solved"),
+        "a solved exercise should be ticked, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("− skipped") && stdout.contains("(requires clang)"),
+        "an unsupported exercise should be marked and annotated, got: {stdout}"
     );
 }
