@@ -234,7 +234,7 @@ pub fn reset_all(state: &AppState, info: &InfoFile, base_dir: &Path) -> Result<(
 /// exercise's progress untouched. Compiles nothing.
 pub fn reset_one(base_dir: &Path, name: String, compiler_kind: CompilerKind) -> Result<()> {
     let info = InfoFile::parse(&base_dir.join("info.toml"))?;
-    let mut state = state_without_compiler(base_dir, &info, compiler_kind)?;
+    let mut state = state_without_compiler(base_dir, &info, compiler_kind);
     let idx = state.resolve(Some(name))?;
     let ex_name = state.exercises[idx].name().to_string();
     workspace::restore_exercise(base_dir, &state.exercises[idx].info)?;
@@ -274,7 +274,7 @@ pub fn diff(base_dir: &Path, name: Option<String>, compiler_kind: CompilerKind) 
     let ei = match name {
         Some(name) => info.find(&name)?.clone(),
         None => {
-            let state = state_without_compiler(base_dir, &info, compiler_kind)?;
+            let state = state_without_compiler(base_dir, &info, compiler_kind);
             let idx = state.resolve(None)?;
             state.exercises[idx].info.clone()
         }
@@ -323,10 +323,14 @@ fn state_without_compiler(
     base_dir: &Path,
     info: &InfoFile,
     compiler_kind: CompilerKind,
-) -> Result<AppState> {
+) -> AppState {
     let work_dir = workspace::work_dir(base_dir);
     let exercises = workspace::load_exercises(info, base_dir, &work_dir, compiler_kind);
-    AppState::new(exercises, base_dir)
+    let state = AppState::new(exercises, base_dir);
+    for warning in state.warnings() {
+        term::warn_stderr(warning);
+    }
+    state
 }
 
 /// Writes to stdout, tolerating ONLY a closed pipe (`cmetal diff x |

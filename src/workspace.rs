@@ -430,10 +430,6 @@ pub fn load_exercises(
         .collect()
 }
 
-/// Learners work on copies in `my_exercises/` (gitignored), so the pristine
-/// files in `exercises/` are never modified and can't be pushed in their
-/// solved state. Copies any exercise that is not yet in the workspace,
-/// leaving files the learner already edited untouched.
 /// Where the learner's working copies live. A pure path: knowing it
 /// must not require creating it, so commands that never touch the
 /// files can still name them.
@@ -441,6 +437,10 @@ pub fn work_dir(base_dir: &Path) -> PathBuf {
     base_dir.join("my_exercises")
 }
 
+/// Learners work on copies in `my_exercises/` (gitignored), so the pristine
+/// files in `exercises/` are never modified and can't be pushed in their
+/// solved state. Copies any exercise that is not yet in the workspace,
+/// leaving files the learner already edited untouched.
 pub fn prepare_workspace(info: &InfoFile, base_dir: &Path) -> Result<PathBuf> {
     let pristine_dir = base_dir.join("exercises");
     let work_dir = work_dir(base_dir);

@@ -13,16 +13,15 @@ fn has_gcc() -> bool {
         .unwrap_or(false)
 }
 
-/// A PATH value guaranteed to contain no compiler.
+/// A PATH guaranteed to contain no compiler.
 ///
 /// An empty PATH string is not enough: POSIX leaves the lookup
 /// undefined when PATH is set but empty, and glibc treats the empty
-/// entry as the current directory. Pointing at a real empty directory
-/// is unambiguous everywhere.
-fn empty_path_dir(tmp: &Path) -> std::path::PathBuf {
-    let dir = tmp.join("no-toolchain");
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
+/// entry as the current directory. A real empty directory is
+/// unambiguous everywhere — and it lives in its own TempDir, so the
+/// fixture project stays exactly as a real workspace would be.
+fn no_toolchain() -> TempDir {
+    TempDir::new().unwrap()
 }
 
 /// Path to the cmetal binary built for THIS test run.
@@ -1274,10 +1273,11 @@ fn cli_diff_named_exercise_ignores_a_damaged_state_file() {
     let state_file = tmp.path().join(".cmetal-state.txt");
     std::fs::write(&state_file, [0xff, 0xfe, 0x00, b'x']).unwrap();
 
+    let no_tools = no_toolchain();
     let output = Command::new(cmetal_bin())
         .args(["diff", "foo"])
         .current_dir(tmp.path())
-        .env("PATH", empty_path_dir(tmp.path()))
+        .env("PATH", no_tools.path())
         .output()
         .unwrap();
 
@@ -1312,10 +1312,11 @@ fn cli_compiler_free_commands_work_without_a_toolchain() {
     );
 
     for args in [vec!["list"], vec!["hint", "foo"], vec!["reset"]] {
+        let no_tools = no_toolchain();
         let output = Command::new(cmetal_bin())
             .args(&args)
             .current_dir(tmp.path())
-            .env("PATH", empty_path_dir(tmp.path()))
+            .env("PATH", no_tools.path())
             .output()
             .unwrap();
 
@@ -1336,10 +1337,11 @@ fn cli_run_still_reports_a_missing_toolchain() {
         &[("foo", "00_intro", "int main(void) { return 0; }\n")],
     );
 
+    let no_tools = no_toolchain();
     let output = Command::new(cmetal_bin())
         .args(["run", "foo"])
         .current_dir(tmp.path())
-        .env("PATH", empty_path_dir(tmp.path()))
+        .env("PATH", no_tools.path())
         .output()
         .unwrap();
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1353,12 +1355,10 @@ fn cli_run_still_reports_a_missing_toolchain() {
     );
 }
 
+/// No `has_gcc()` guard: recovering from a damaged progress file is
+/// pure state handling, so it must hold on a machine with no toolchain.
 #[test]
 fn cli_recovers_from_a_damaged_state_file() {
-    if !has_gcc() {
-        eprintln!("skipping: gcc not available");
-        return;
-    }
     let tmp = TempDir::new().unwrap();
     setup_project(
         tmp.path(),
@@ -1368,7 +1368,7 @@ fn cli_recovers_from_a_damaged_state_file() {
 
     // Unreadable progress must not lock the learner out of the tool —
     // least of all out of `reset`, whose job is to clear this file.
-    for args in [vec!["list"], vec!["hint", "foo"], vec!["run", "foo"]] {
+    for args in [vec!["list"], vec!["hint", "foo"]] {
         std::fs::write(&state_file, [0xff, 0xfe, 0x00, b'x']).unwrap();
         let output = Command::new(cmetal_bin())
             .args(&args)
@@ -1381,11 +1381,24 @@ fn cli_recovers_from_a_damaged_state_file() {
             args.join(" "),
             String::from_utf8_lossy(&output.stderr)
         );
+        // The warning belongs on stderr: `cmetal list` is piped, and a
+        // diagnostic must not end up in the listing.
         assert!(
-            String::from_utf8_lossy(&output.stdout).contains("empty progress"),
-            "the learner must be told progress was lost, stdout: {}",
-            String::from_utf8_lossy(&output.stdout)
+            String::from_utf8_lossy(&output.stderr).contains("empty progress"),
+            "the learner must be told progress was lost, stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
         );
+        assert!(
+            !String::from_utf8_lossy(&output.stdout).contains("empty progress"),
+            "the warning must not pollute stdout"
+        );
+        // The unreadable file is kept: corruption is usually partial,
+        // and overwriting it would destroy what was still salvageable.
+        assert!(
+            tmp.path().join(".cmetal-state.txt.damaged").exists(),
+            "the damaged progress file must be preserved"
+        );
+        std::fs::remove_file(tmp.path().join(".cmetal-state.txt.damaged")).unwrap();
     }
 
     // reset is the recovery path: it must clear the damaged file.

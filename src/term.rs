@@ -37,6 +37,21 @@ pub fn print_warning(msg: &str) {
     println!("{msg}\r");
 }
 
+/// A warning that must not land in stdout: diagnostics about a broken
+/// workspace would otherwise show up in the output of `cmetal list`
+/// and anything piped from it.
+pub fn warn_stderr(msg: &str) {
+    let mut stderr = io::stderr();
+    let _ = crossterm::execute!(
+        stderr,
+        SetForegroundColor(Color::Yellow),
+        SetAttribute(Attribute::Bold)
+    );
+    eprint!("  ⚠ ");
+    let _ = crossterm::execute!(stderr, SetAttribute(Attribute::Reset));
+    eprintln!("{msg}\r");
+}
+
 pub fn print_info(msg: &str) {
     let mut stdout = io::stdout();
     let _ = crossterm::execute!(stdout, SetForegroundColor(Color::Cyan));

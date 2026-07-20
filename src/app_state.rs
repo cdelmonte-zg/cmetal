@@ -1,5 +1,4 @@
 use crate::exercise::Exercise;
-use crate::term;
 use anyhow::{Context, Result};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -14,10 +13,17 @@ pub struct AppState {
     pub exercises: Vec<Exercise>,
     done: HashSet<String>,
     pub current_index: usize,
+    /// Non-fatal problems found while loading. This module does no
+    /// output of its own — the caller decides how and where to report
+    /// them, which keeps `load` testable without capturing a terminal.
+    warnings: Vec<String>,
 }
 
 impl AppState {
-    pub fn new(exercises: Vec<Exercise>, base_dir: &Path) -> Result<Self> {
+    /// Loads the learner's progress. Infallible by construction: a
+    /// progress file that cannot be read is reported as a warning and
+    /// treated as no progress, never as a failure.
+    pub fn new(exercises: Vec<Exercise>, base_dir: &Path) -> Self {
         let state_path = base_dir.join(STATE_FILE);
         let legacy = base_dir.join(LEGACY_STATE_FILE);
         if !state_path.exists() && legacy.exists() {
@@ -29,9 +35,15 @@ impl AppState {
             exercises,
             done: HashSet::new(),
             current_index: 0,
+            warnings: Vec::new(),
         };
         state.load();
-        Ok(state)
+        state
+    }
+
+    /// Problems found while loading, for the caller to report.
+    pub fn warnings(&self) -> &[String] {
+        &self.warnings
     }
 
     /// Reads the progress file, tolerating a damaged one.
@@ -49,10 +61,7 @@ impl AppState {
         let content = match std::fs::read_to_string(&self.state_path) {
             Ok(content) => content,
             Err(e) => {
-                term::print_warning(&format!(
-                    "Could not read {} ({e}) — starting from empty progress.",
-                    self.state_path.display()
-                ));
+                self.preserve_damaged(e);
                 return;
             }
         };
@@ -83,6 +92,29 @@ impl AppState {
             if !name.is_empty() {
                 self.done.insert(name.to_string());
             }
+        }
+    }
+
+    /// Moves a progress file we could not read aside before anything
+    /// overwrites it.
+    ///
+    /// Corruption is usually partial — a few mangled bytes in a file
+    /// listing twenty solved exercises still reads as invalid UTF-8,
+    /// and the next save would replace all of it with one entry. The
+    /// copy costs a rename and leaves the learner something to salvage.
+    fn preserve_damaged(&mut self, error: std::io::Error) {
+        let kept = self.state_path.with_extension("txt.damaged");
+        match std::fs::rename(&self.state_path, &kept) {
+            Ok(()) => self.warnings.push(format!(
+                "Could not read {} ({error}) — kept it as {} and started from \
+                 empty progress.",
+                self.state_path.display(),
+                kept.display()
+            )),
+            Err(_) => self.warnings.push(format!(
+                "Could not read {} ({error}) — starting from empty progress.",
+                self.state_path.display()
+            )),
         }
     }
 
@@ -203,6 +235,7 @@ impl AppState {
             exercises,
             done: HashSet::new(),
             current_index: 0,
+            warnings: Vec::new(),
         }
     }
 
@@ -392,8 +425,8 @@ mod tests {
         let state2 = AppState::new(
             vec![make_exercise("a"), make_exercise("b"), make_exercise("c")],
             tmp.path(),
-        )
-        .unwrap();
+        );
+        assert!(state2.warnings().is_empty(), "a healthy file warns nothing");
         assert_eq!(state2.current_index, 1);
         assert!(state2.is_done("a"));
         assert!(!state2.is_done("b"));
