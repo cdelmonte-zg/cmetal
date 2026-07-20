@@ -471,6 +471,26 @@ pub fn restore_exercise(base_dir: &Path, ei: &ExerciseInfo) -> Result<()> {
     Ok(())
 }
 
+/// Working copies that differ from their pristine exercise — the work
+/// a restore is about to discard.
+pub fn edited_exercises(info: &InfoFile, base_dir: &Path) -> Vec<String> {
+    info.exercises
+        .iter()
+        .filter(|ei| {
+            let rel = ei.rel_path();
+            let pristine = std::fs::read(base_dir.join("exercises").join(&rel));
+            let mine = std::fs::read(work_dir(base_dir).join(&rel));
+            match (pristine, mine) {
+                (Ok(pristine), Ok(mine)) => pristine != mine,
+                // No working copy yet, or no pristine to compare
+                // against: nothing of the learner's to lose.
+                _ => false,
+            }
+        })
+        .map(|ei| ei.name.clone())
+        .collect()
+}
+
 /// Overwrite every workspace file with its pristine version from `exercises/`.
 pub fn restore_workspace(info: &InfoFile, base_dir: &Path) -> Result<()> {
     for ei in &info.exercises {

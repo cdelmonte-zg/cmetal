@@ -62,7 +62,7 @@ enum Commands {
     List,
     /// Verify all exercises
     Verify,
-    /// Reset progress, or a single exercise's working copy
+    /// Reset progress and discard your edits, restoring pristine exercises
     Reset {
         /// Exercise name: restore only its working copy (progress kept)
         name: Option<String>,

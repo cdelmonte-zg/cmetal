@@ -1472,3 +1472,48 @@ fn cli_preserves_a_damaged_state_file_before_overwriting_it() {
         String::from_utf8_lossy(&output.stdout)
     );
 }
+
+#[test]
+fn cli_reset_announces_the_work_it_discards() {
+    if !has_gcc() {
+        eprintln!("skipping: gcc not available");
+        return;
+    }
+    let tmp = TempDir::new().unwrap();
+    setup_project(
+        tmp.path(),
+        &[("foo", "00_intro", "int main(void) { return 1; }\n")],
+    );
+    // Materialize the workspace, then edit the working copy.
+    Command::new(cmetal_bin())
+        .arg("list")
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    std::fs::write(
+        tmp.path().join("my_exercises/00_intro/foo.c"),
+        "// hours of work\nint main(void) { return 0; }\n",
+    )
+    .unwrap();
+
+    let output = Command::new(cmetal_bin())
+        .arg("reset")
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // reset does discard edits — that is its job — but it must say so
+    // before doing it, naming what goes.
+    assert!(output.status.success());
+    assert!(
+        stdout.contains("Discarding your work") && stdout.contains("foo"),
+        "reset must name the work it discards, stdout: {stdout}"
+    );
+    let discard_at = stdout.find("Discarding your work").unwrap();
+    let done_at = stdout.find("Progress reset").unwrap();
+    assert!(
+        discard_at < done_at,
+        "the warning must come before the deed, stdout: {stdout}"
+    );
+}

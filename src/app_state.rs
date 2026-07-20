@@ -29,7 +29,7 @@ static DAMAGED_PREFIX: LazyLock<String> = LazyLock::new(|| format!("{STATE_FILE}
 /// file could be preserved again and valid progress ended up filed
 /// away as damaged. Kept as distinct states so that transition is not
 /// expressible rather than merely tested for.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 enum ProgressFile {
     /// Read successfully, or not there at all.
     Loaded,
@@ -37,6 +37,12 @@ enum ProgressFile {
     Unreadable,
     /// Was unreadable and has been moved aside; what sits at
     /// `state_path` from here on is ours.
+    ///
+    /// Deliberately not branched on: it behaves like `Loaded`, and
+    /// exists so that leaving `Unreadable` is a state change the type
+    /// records rather than a flag someone must remember to clear.
+    /// That omission is what once filed valid progress away as damaged
+    /// on every save.
     Preserved,
 }
 
@@ -100,9 +106,9 @@ impl AppState {
                 self.progress_file = ProgressFile::Unreadable;
                 warn(&format!(
                     "Could not read {} ({e}) — starting from empty progress. \
-                     The file is kept and will be moved aside as a .damaged \
-                     copy the first time progress is written; run \
-                     `cmetal reset` to do that now.",
+                     The file is kept: delete it yourself, or it is moved \
+                     aside as a .damaged copy the first time progress is \
+                     saved.",
                     self.state_path.display()
                 ));
                 return;
@@ -587,6 +593,27 @@ mod tests {
     /// The file is preserved once, not once per save. Watch mode saves
     /// on every navigation keypress, so a flag left set would file the
     /// learner's own valid progress away as damaged, over and over.
+    /// The warning must not point at a command that discards the
+    /// learner's work. It once recommended `cmetal reset`, which
+    /// overwrites every working copy with the pristine exercise — a
+    /// corrupt progress file is not worth losing hours of code over.
+    #[test]
+    fn the_damaged_file_warning_recommends_nothing_destructive() {
+        let tmp = tempfile::tempdir().unwrap();
+        write_damaged(tmp.path());
+        let mut warnings = Vec::new();
+        let _ = AppState::new(vec![make_exercise("a")], tmp.path(), |w| {
+            warnings.push(w.to_string())
+        });
+
+        assert_eq!(warnings.len(), 1);
+        assert!(
+            !warnings[0].contains("reset"),
+            "the warning must not send the learner to a destructive command: {}",
+            warnings[0]
+        );
+    }
+
     #[test]
     fn repeated_saves_preserve_only_once() {
         let tmp = tempfile::tempdir().unwrap();
@@ -617,7 +644,7 @@ mod tests {
 
         assert_eq!(warnings.len(), 1, "the learner must be told");
         assert!(
-            warnings[0].contains("cmetal reset"),
+            warnings[0].contains("delete it"),
             "the warning must say how to clear it: {}",
             warnings[0]
         );
