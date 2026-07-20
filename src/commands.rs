@@ -12,7 +12,7 @@
 
 use crate::app_state::AppState;
 use crate::compiler::{Compiler, CompilerKind};
-use crate::info_file::InfoFile;
+use crate::info_file::{ExerciseInfo, InfoFile};
 use crate::runner::{self, RunStatus};
 use crate::term;
 use crate::view;
@@ -226,28 +226,12 @@ pub fn reset_all(
     base_dir: &Path,
     force: bool,
 ) -> Result<()> {
-    // Say what is about to be discarded and let the learner stop it.
-    // The past-tense success line below is no use to someone who did
-    // not know `reset` overwrites the code they wrote — and an alarm
-    // that only narrates would be worse than none.
-    let edited = workspace::edited_exercises(info, base_dir);
-    if !edited.is_empty() && !force {
-        println!();
-        term::print_warning(&format!(
-            "This discards your work on {} exercise(s): {}.",
-            edited.len(),
-            edited.join(", ")
-        ));
-        if !term::confirm("Continue?")? {
-            println!();
-            term::print_info("Nothing was changed.");
-            println!();
-            return Ok(());
-        }
+    let targets: Vec<&ExerciseInfo> = info.exercises.iter().collect();
+    if !restore_with_consent(base_dir, &targets, force)? {
+        return Ok(());
     }
-
     state.reset()?;
-    workspace::restore_workspace(info, base_dir)?;
+
     println!();
     term::print_success("Progress reset. Workspace restored to pristine exercises!");
     // Saying "reset" while leaving files behind would be a lie, and
@@ -264,15 +248,54 @@ pub fn reset_all(
     Ok(())
 }
 
+/// Overwrites working copies, never silently.
+///
+/// Every command that discards a learner's code goes through here, so
+/// the notice lives with the destruction rather than with whichever
+/// command was reviewed last — `reset` and `reset <name>` cannot drift
+/// apart on how dangerous they admit to being. Returns false when the
+/// learner declined, in which case nothing was touched.
+fn restore_with_consent(base_dir: &Path, targets: &[&ExerciseInfo], force: bool) -> Result<bool> {
+    let edited = workspace::edited_among(base_dir, targets.iter().copied());
+    if !edited.is_empty() {
+        println!();
+        term::print_warning(&format!(
+            "This discards your work on {} exercise(s): {}.",
+            edited.len(),
+            edited.join(", ")
+        ));
+        // --force answers the question; it does not silence the
+        // record, or an unattended run leaves no trace of what went.
+        if !force && !term::confirm("Continue?")? {
+            println!();
+            term::print_info("Nothing was changed.");
+            println!();
+            return Ok(false);
+        }
+    }
+    for ei in targets {
+        workspace::restore_exercise(base_dir, ei)?;
+    }
+    Ok(true)
+}
+
 /// `cmetal reset <name>` — restore one exercise's working copy to the
 /// pristine version and mark it pending again, leaving every other
 /// exercise's progress untouched. Compiles nothing.
-pub fn reset_one(base_dir: &Path, name: String, compiler_kind: CompilerKind) -> Result<()> {
+pub fn reset_one(
+    base_dir: &Path,
+    name: String,
+    compiler_kind: CompilerKind,
+    force: bool,
+) -> Result<()> {
     let info = InfoFile::parse(&base_dir.join("info.toml"))?;
     let mut state = state_without_compiler(base_dir, &info, compiler_kind);
     let idx = state.resolve(Some(name))?;
     let ex_name = state.exercises[idx].name().to_string();
-    workspace::restore_exercise(base_dir, &state.exercises[idx].info)?;
+    let target = state.exercises[idx].info.clone();
+    if !restore_with_consent(base_dir, &[&target], force)? {
+        return Ok(());
+    }
 
     // Un-done it, or watch mode would never offer it again and the
     // progress count would keep claiming it solved.

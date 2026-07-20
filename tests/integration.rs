@@ -1562,8 +1562,52 @@ fn cli_reset_force_skips_the_prompt_and_discards() {
         "int main(void) { return 1; }\n",
         "--force must still restore the pristine exercise"
     );
+    // --force answers the question; it must not suppress the record,
+    // or an unattended run leaves no trace of what it destroyed.
     assert!(
-        !String::from_utf8_lossy(&output.stdout).contains("discards your work"),
-        "--force means the learner already decided; do not lecture them"
+        String::from_utf8_lossy(&output.stdout).contains("discards your work"),
+        "--force must still say what it discarded, stdout: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn cli_reset_named_exercise_also_announces_what_it_discards() {
+    if !has_gcc() {
+        eprintln!("skipping: gcc not available");
+        return;
+    }
+    let tmp = TempDir::new().unwrap();
+    setup_project(
+        tmp.path(),
+        &[("foo", "00_intro", "int main(void) { return 1; }\n")],
+    );
+    Command::new(cmetal_bin())
+        .arg("list")
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    let work = tmp.path().join("my_exercises/00_intro/foo.c");
+    std::fs::write(&work, "// hours of work\n").unwrap();
+
+    let output = Command::new(cmetal_bin())
+        .args(["reset", "foo"])
+        .current_dir(tmp.path())
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // `reset <name>` destroys work exactly like `reset` does, so it
+    // must be exactly as loud about it. Guarding one path and not its
+    // sibling is how the two drifted apart before.
+    assert!(output.status.success());
+    assert!(
+        stdout.contains("discards your work") && stdout.contains("foo"),
+        "reset <name> must name the work it discards, stdout: {stdout}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&work).unwrap(),
+        "int main(void) { return 1; }\n"
     );
 }

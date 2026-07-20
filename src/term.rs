@@ -122,13 +122,18 @@ pub fn print_stage_output(stage: &str, output: &str) {
 /// Returns true without asking when stdin is not a terminal: a script
 /// or CI run has no one to answer, and the command it typed is the
 /// answer. Interactive callers get a real choice.
+///
+/// The question goes to stderr, not stdout: `cmetal reset | tee log`
+/// still has a terminal on stdin, so a prompt written to stdout would
+/// disappear into the pipe and leave the learner staring at a program
+/// that looks hung.
 pub fn confirm(question: &str) -> std::io::Result<bool> {
     use std::io::{BufRead, Write};
     if !io::stdin().is_terminal() {
         return Ok(true);
     }
-    print!("  {question} [y/N] ");
-    io::stdout().flush()?;
+    eprint!("  {question} [y/N] ");
+    io::stderr().flush()?;
     let mut answer = String::new();
     io::stdin().lock().read_line(&mut answer)?;
     Ok(matches!(answer.trim().to_lowercase().as_str(), "y" | "yes"))

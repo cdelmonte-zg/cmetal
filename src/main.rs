@@ -107,10 +107,11 @@ fn main() -> Result<()> {
             return commands::diff(&base_dir, name.clone(), compiler_kind);
         }
         Some(Commands::Reset {
-            name: Some(name), ..
+            name: Some(name),
+            force,
         }) => {
             let base_dir = workspace::resolve_base_dir()?;
-            return commands::reset_one(&base_dir, name.clone(), compiler_kind);
+            return commands::reset_one(&base_dir, name.clone(), compiler_kind, *force);
         }
         _ => {}
     }

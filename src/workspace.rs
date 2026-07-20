@@ -443,18 +443,18 @@ pub fn work_dir(base_dir: &Path) -> PathBuf {
 /// leaving files the learner already edited untouched.
 pub fn prepare_workspace(info: &InfoFile, base_dir: &Path) -> Result<PathBuf> {
     let pristine_dir = base_dir.join("exercises");
-    let work_dir = work_dir(base_dir);
+    let work = work_dir(base_dir);
     for ei in &info.exercises {
         let rel = ei.rel_path();
         let src = pristine_dir.join(&rel);
-        let dst = work_dir.join(&rel);
+        let dst = work.join(&rel);
         if src.exists() && !dst.exists() {
             std::fs::create_dir_all(dst.parent().unwrap())?;
             std::fs::copy(&src, &dst)
                 .with_context(|| format!("Failed to copy {} into the workspace", src.display()))?;
         }
     }
-    Ok(work_dir)
+    Ok(work)
 }
 
 /// Copies one exercise's pristine file over its working copy. Missing
@@ -471,16 +471,19 @@ pub fn restore_exercise(base_dir: &Path, ei: &ExerciseInfo) -> Result<()> {
     Ok(())
 }
 
-/// Working copies that differ from their pristine exercise — the work
-/// a restore is about to discard.
-pub fn edited_exercises(info: &InfoFile, base_dir: &Path) -> Vec<String> {
+/// Working copies among `exercises` that differ from their pristine
+/// version — the work a restore is about to discard.
+pub fn edited_among<'a>(
+    base_dir: &Path,
+    exercises: impl IntoIterator<Item = &'a ExerciseInfo>,
+) -> Vec<String> {
     let pristine_dir = base_dir.join("exercises");
-    let work_dir = work_dir(base_dir);
-    info.exercises
-        .iter()
+    let work = work_dir(base_dir);
+    exercises
+        .into_iter()
         .filter(|ei| {
             let rel = ei.rel_path();
-            differs(&pristine_dir.join(&rel), &work_dir.join(&rel))
+            differs(&pristine_dir.join(&rel), &work.join(&rel))
         })
         .map(|ei| ei.name.clone())
         .collect()
@@ -503,12 +506,4 @@ fn differs(pristine: &Path, mine: &Path) -> bool {
         (Ok(a), Ok(b)) => a != b,
         _ => false,
     }
-}
-
-/// Overwrite every workspace file with its pristine version from `exercises/`.
-pub fn restore_workspace(info: &InfoFile, base_dir: &Path) -> Result<()> {
-    for ei in &info.exercises {
-        restore_exercise(base_dir, ei)?;
-    }
-    Ok(())
 }
