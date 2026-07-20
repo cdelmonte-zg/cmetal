@@ -6,6 +6,13 @@ fn default_true() -> bool {
     true
 }
 
+/// The one "no such exercise" message, so a mistyped name reads the
+/// same whether the command resolved it against the info file or
+/// against the learner's progress state.
+pub fn not_found(name: &str) -> String {
+    format!("Exercise '{name}' not found")
+}
+
 #[derive(Debug, Deserialize)]
 pub struct InfoFile {
     pub format_version: u32,
@@ -41,6 +48,19 @@ pub struct ExerciseInfo {
     /// Progressive hints array (new format)
     #[serde(default)]
     pub hints: Option<Vec<String>>,
+}
+
+impl InfoFile {
+    /// Looks up an exercise by name, without consulting any progress
+    /// state. The compiler-free diagnostic commands use this so a
+    /// damaged `.cmetal-state.txt` cannot stop them from answering a
+    /// question about a named exercise.
+    pub fn find(&self, name: &str) -> Result<&ExerciseInfo> {
+        self.exercises
+            .iter()
+            .find(|ei| ei.name == name)
+            .with_context(|| not_found(name))
+    }
 }
 
 impl ExerciseInfo {

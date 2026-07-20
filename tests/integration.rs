@@ -1246,3 +1246,40 @@ fn cli_diff_defaults_to_the_current_exercise() {
         "expected the current exercise to be named, got: {stdout}"
     );
 }
+
+#[test]
+fn cli_diff_named_exercise_ignores_a_damaged_state_file() {
+    if !has_gcc() {
+        eprintln!("skipping: gcc not available");
+        return;
+    }
+    let tmp = TempDir::new().unwrap();
+    setup_project(
+        tmp.path(),
+        &[("foo", "00_intro", "int main(void) { return 0; }\n")],
+    );
+
+    // Not valid UTF-8: AppState::load would fail on this.
+    let state_file = tmp.path().join(".cmetal-state.txt");
+    std::fs::write(&state_file, [0xff, 0xfe, 0x00, b'x']).unwrap();
+
+    let output = Command::new(cmetal_bin())
+        .args(["diff", "foo"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    // diff is a diagnostic command: asked about a named exercise it
+    // must answer even when progress is unreadable.
+    assert!(
+        output.status.success(),
+        "diff <name> must not depend on the progress file, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    // ...and it must not have rewritten or migrated it behind our back.
+    assert_eq!(
+        std::fs::read(&state_file).unwrap(),
+        vec![0xff, 0xfe, 0x00, b'x'],
+        "diff <name> must leave the progress file untouched"
+    );
+}

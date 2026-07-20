@@ -176,7 +176,7 @@ impl AppState {
                 .unwrap_or_default()
         });
         self.find_exercise(&name)
-            .with_context(|| format!("Exercise '{name}' not found"))
+            .with_context(|| crate::info_file::not_found(&name))
     }
 
     /// Builds a state directly from parts, bypassing the on-disk

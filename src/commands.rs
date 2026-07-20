@@ -21,8 +21,13 @@ use anyhow::{Context, Result};
 use std::path::Path;
 
 /// `cmetal run [name]` — verify one exercise and persist a pass
-/// immediately. Exits non-zero when it does not pass, so the command
-/// composes in scripts and CI.
+/// immediately.
+///
+/// The exit-code contract scripts and CI compose on: zero for a pass,
+/// non-zero for a wrong answer or a missing working copy. An exercise
+/// the selected compiler cannot judge is reported as skipped and also
+/// exits zero — it is not a failure, so it must not break a sweep run
+/// under one compiler over a curriculum that pins another.
 pub fn run(
     state: &mut AppState,
     compiler: &Compiler,
@@ -252,11 +257,23 @@ pub fn reset_one(base_dir: &Path, name: String, compiler_kind: CompilerKind) -> 
 /// copy. Compiles nothing.
 pub fn diff(base_dir: &Path, name: Option<String>, compiler_kind: CompilerKind) -> Result<()> {
     let info = InfoFile::parse(&base_dir.join("info.toml"))?;
-    let state = state_without_compiler(base_dir, &info, compiler_kind)?;
-    let idx = state.resolve(name)?;
-    let exercise = &state.exercises[idx];
-    let name = exercise.name();
-    let rel = exercise.info.rel_path();
+
+    // A named exercise is resolved against info.toml alone. diff is a
+    // diagnostic command: it must keep answering when the progress
+    // file is unreadable, and it must not migrate or rewrite that file
+    // as a side effect of being asked about a specific exercise. Only
+    // the no-argument form needs the state, because "the exercise I am
+    // on" is a fact only the state knows.
+    let ei = match name {
+        Some(name) => info.find(&name)?.clone(),
+        None => {
+            let state = state_without_compiler(base_dir, &info, compiler_kind)?;
+            let idx = state.resolve(None)?;
+            state.exercises[idx].info.clone()
+        }
+    };
+    let name = &ei.name;
+    let rel = ei.rel_path();
 
     let pristine = std::fs::read_to_string(base_dir.join("exercises").join(&rel))
         .with_context(|| format!("Failed to read pristine {}", rel.display()))?;
