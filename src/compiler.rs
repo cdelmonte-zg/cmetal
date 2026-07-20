@@ -51,8 +51,7 @@ impl Compiler {
             anyhow::bail!("{name} --version failed");
         }
 
-        let supports_no_fixit_hints =
-            probe_flag(kind, "-fno-diagnostics-show-fix-it-hints");
+        let supports_no_fixit_hints = probe_flag(kind, "-fno-diagnostics-show-fix-it-hints");
 
         Ok(Self {
             kind,

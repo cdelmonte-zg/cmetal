@@ -29,6 +29,7 @@ pub struct Exercise {
     pub supported: bool,
 }
 
+#[derive(Debug)]
 pub struct VerifyResult {
     pub success: bool,
     pub stage: &'static str,
@@ -271,8 +272,7 @@ fn spawn_pipe_reader<R: Read + Send + 'static>(
             match pipe.read(&mut chunk) {
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
-                    let remaining =
-                        MAX_CAPTURED_OUTPUT.saturating_sub(captured.bytes.len());
+                    let remaining = MAX_CAPTURED_OUTPUT.saturating_sub(captured.bytes.len());
                     let keep = remaining.min(n);
                     captured.bytes.extend_from_slice(&chunk[..keep]);
                     if keep < n {

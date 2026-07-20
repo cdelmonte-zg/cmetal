@@ -43,6 +43,19 @@ pub struct ExerciseInfo {
     pub hints: Option<Vec<String>>,
 }
 
+impl InfoFile {
+    /// Looks up an exercise by name, without consulting any progress
+    /// state. The compiler-free diagnostic commands use this so a
+    /// damaged `.cmetal-state.txt` cannot stop them from answering a
+    /// question about a named exercise.
+    pub fn find(&self, name: &str) -> Result<&ExerciseInfo> {
+        self.exercises
+            .iter()
+            .find(|ei| ei.name == name)
+            .with_context(|| crate::errors::exercise_not_found(name))
+    }
+}
+
 impl ExerciseInfo {
     /// Path of this exercise's source file relative to the exercises
     /// root — the single place the `<dir>/<name>.c` layout convention
