@@ -1,6 +1,7 @@
 mod app_state;
 mod commands;
 mod compiler;
+mod errors;
 mod exercise;
 mod info_file;
 mod runner;
@@ -109,12 +110,10 @@ fn main() -> Result<()> {
         _ => {}
     }
 
-    // Everything below needs the exercise list and the learner's
-    // progress. The C compiler is NOT part of that: `list`, `hint` and
-    // `reset` compile nothing, and probing for a toolchain they will
-    // never use would make them fail on a machine that has none. Each
-    // arm that actually compiles builds it for itself — which exercise
-    // supports which compiler is decided from `compiler_kind` alone.
+    // Everything below needs the exercise list, the materialized
+    // workspace and the learner's progress. Materializing is idempotent
+    // and is what every engine command has always done on startup —
+    // `cmetal list` is how a learner first gets their working copies.
     let base_dir = workspace::resolve_base_dir()
         .context("Could not find cmetal project. Make sure you're inside the cmetal directory.")?;
 
@@ -124,6 +123,13 @@ fn main() -> Result<()> {
     let exercises = workspace::load_exercises(&info, &base_dir, &work_dir, compiler_kind);
     let build_dir = base_dir.join("target").join("cmetal");
     let mut state = AppState::new(exercises, &base_dir)?;
+
+    // The C toolchain is NOT part of that: `list`, `hint` and `reset`
+    // compile nothing, and probing for a compiler they will never use
+    // would lock out a machine that has none. Only the arms below that
+    // actually compile call this. Which exercise supports which
+    // compiler is decided from `compiler_kind` alone.
+    let compiler = || Compiler::new(compiler_kind, &base_dir);
 
     match cli.command {
         // Dispatched before engine setup; see the match at the top of main.
@@ -135,30 +141,18 @@ fn main() -> Result<()> {
         }
         None => watch::run_watch(
             &mut state,
-            &Compiler::new(compiler_kind, &base_dir)?,
+            &compiler()?,
             &work_dir,
             &build_dir,
             info.welcome_message.as_deref(),
         )?,
-        Some(Commands::Run { name }) => commands::run(
-            &mut state,
-            &Compiler::new(compiler_kind, &base_dir)?,
-            &build_dir,
-            name,
-        )?,
+        Some(Commands::Run { name }) => commands::run(&mut state, &compiler()?, &build_dir, name)?,
         Some(Commands::Hint { name, level }) => commands::hint(&state, name, level)?,
-        Some(Commands::Solution { name }) => commands::solution(
-            &mut state,
-            &Compiler::new(compiler_kind, &base_dir)?,
-            &build_dir,
-            name,
-        )?,
+        Some(Commands::Solution { name }) => {
+            commands::solution(&mut state, &compiler()?, &build_dir, name)?
+        }
         Some(Commands::List) => commands::list(&state),
-        Some(Commands::Verify) => commands::verify(
-            &mut state,
-            &Compiler::new(compiler_kind, &base_dir)?,
-            &build_dir,
-        )?,
+        Some(Commands::Verify) => commands::verify(&mut state, &compiler()?, &build_dir)?,
         Some(Commands::Reset { name: None }) => commands::reset_all(&state, &info, &base_dir)?,
     }
 

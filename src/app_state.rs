@@ -1,4 +1,5 @@
 use crate::exercise::Exercise;
+use crate::term;
 use anyhow::{Context, Result};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -29,17 +30,32 @@ impl AppState {
             done: HashSet::new(),
             current_index: 0,
         };
-        state.load()?;
+        state.load();
         Ok(state)
     }
 
-    fn load(&mut self) -> Result<()> {
+    /// Reads the progress file, tolerating a damaged one.
+    ///
+    /// An unreadable state file is lost progress, not a fatal error.
+    /// Making it fatal locked the learner out of every command — including
+    /// `reset`, whose whole job is to clear this file — leaving no way out
+    /// but deleting it by hand. Warn, start from empty, and let the next
+    /// save rewrite it.
+    fn load(&mut self) {
         if !self.state_path.exists() {
-            return Ok(());
+            return;
         }
 
-        let content = std::fs::read_to_string(&self.state_path)
-            .with_context(|| "Failed to read state file")?;
+        let content = match std::fs::read_to_string(&self.state_path) {
+            Ok(content) => content,
+            Err(e) => {
+                term::print_warning(&format!(
+                    "Could not read {} ({e}) — starting from empty progress.",
+                    self.state_path.display()
+                ));
+                return;
+            }
+        };
 
         let mut lines = content.lines();
 
@@ -68,8 +84,6 @@ impl AppState {
                 self.done.insert(name.to_string());
             }
         }
-
-        Ok(())
     }
 
     pub fn save(&self) -> Result<()> {
@@ -176,7 +190,7 @@ impl AppState {
                 .unwrap_or_default()
         });
         self.find_exercise(&name)
-            .with_context(|| crate::info_file::not_found(&name))
+            .with_context(|| crate::errors::exercise_not_found(&name))
     }
 
     /// Builds a state directly from parts, bypassing the on-disk

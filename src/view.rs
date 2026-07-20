@@ -84,13 +84,17 @@ pub fn report_terse(exercise: &Exercise, status: &RunStatus) {
             exercise.name(),
             result.stage
         )),
+        // Skipped is a warning because it does not fail the sweep;
+        // missing is an error because it does. The glyphs have to
+        // match `verify`'s verdict, or a run exits non-zero with
+        // nothing in the per-exercise lines marked as failing.
         RunStatus::Unsupported => term::print_warning(&format!(
             "{}: skipped (requires {})",
             exercise.name(),
             exercise.required_compilers()
         )),
         RunStatus::Missing => {
-            term::print_warning(&format!("{}: file not found", exercise.name()));
+            term::print_error(&format!("{}: file not found", exercise.name()));
         }
     }
 }

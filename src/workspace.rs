@@ -434,9 +434,16 @@ pub fn load_exercises(
 /// files in `exercises/` are never modified and can't be pushed in their
 /// solved state. Copies any exercise that is not yet in the workspace,
 /// leaving files the learner already edited untouched.
+/// Where the learner's working copies live. A pure path: knowing it
+/// must not require creating it, so commands that never touch the
+/// files can still name them.
+pub fn work_dir(base_dir: &Path) -> PathBuf {
+    base_dir.join("my_exercises")
+}
+
 pub fn prepare_workspace(info: &InfoFile, base_dir: &Path) -> Result<PathBuf> {
     let pristine_dir = base_dir.join("exercises");
-    let work_dir = base_dir.join("my_exercises");
+    let work_dir = work_dir(base_dir);
     for ei in &info.exercises {
         let rel = ei.rel_path();
         let src = pristine_dir.join(&rel);

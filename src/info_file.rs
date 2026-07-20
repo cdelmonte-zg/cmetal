@@ -6,13 +6,6 @@ fn default_true() -> bool {
     true
 }
 
-/// The one "no such exercise" message, so a mistyped name reads the
-/// same whether the command resolved it against the info file or
-/// against the learner's progress state.
-pub fn not_found(name: &str) -> String {
-    format!("Exercise '{name}' not found")
-}
-
 #[derive(Debug, Deserialize)]
 pub struct InfoFile {
     pub format_version: u32,
@@ -59,7 +52,7 @@ impl InfoFile {
         self.exercises
             .iter()
             .find(|ei| ei.name == name)
-            .with_context(|| not_found(name))
+            .with_context(|| crate::errors::exercise_not_found(name))
     }
 }
 

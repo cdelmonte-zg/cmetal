@@ -255,6 +255,13 @@ pub fn reset_one(base_dir: &Path, name: String, compiler_kind: CompilerKind) -> 
 
 /// `cmetal diff [name]` — pristine exercise vs the learner's working
 /// copy. Compiles nothing.
+///
+/// The two forms differ in what they touch. `diff <name>` reads only
+/// `info.toml` and the two files being compared. The no-argument form
+/// additionally *reads* the progress file to learn which exercise is
+/// current, which means it can also migrate a pre-rename
+/// `.clings-state.txt` — unavoidable, since "the exercise I am on" is
+/// a fact only the progress file holds.
 pub fn diff(base_dir: &Path, name: Option<String>, compiler_kind: CompilerKind) -> Result<()> {
     let info = InfoFile::parse(&base_dir.join("info.toml"))?;
 
@@ -317,7 +324,7 @@ fn state_without_compiler(
     info: &InfoFile,
     compiler_kind: CompilerKind,
 ) -> Result<AppState> {
-    let work_dir = base_dir.join("my_exercises");
+    let work_dir = workspace::work_dir(base_dir);
     let exercises = workspace::load_exercises(info, base_dir, &work_dir, compiler_kind);
     AppState::new(exercises, base_dir)
 }
