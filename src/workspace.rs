@@ -373,22 +373,26 @@ pub fn update(base_dir: &Path) -> Result<()> {
 /// Walks up from the working directory to the first ancestor matching
 /// `marker`. The two resolvers below differ only in what counts as a
 /// marker.
-fn find_upwards(marker: impl Fn(&Path) -> bool) -> Option<PathBuf> {
-    let mut dir = std::env::current_dir().ok()?;
+///
+/// The two failures are kept apart: `Err` means the walk could not
+/// start (an unreadable or deleted working directory), `Ok(None)` that
+/// it ran and found nothing. Collapsing them would answer "you are not
+/// in a cmetal project" to a question the process could not even ask.
+fn find_upwards(marker: impl Fn(&Path) -> bool) -> Result<Option<PathBuf>> {
+    let mut dir = std::env::current_dir().context("Failed to read the working directory")?;
     loop {
         if marker(&dir) {
-            return Some(dir);
+            return Ok(Some(dir));
         }
         if !dir.pop() {
-            return None;
+            return Ok(None);
         }
     }
 }
 
 pub fn resolve_base_dir() -> Result<PathBuf> {
-    find_upwards(|dir| dir.join("info.toml").exists()).with_context(|| {
-        "Could not find info.toml. Are you in a cmetal project directory?".to_string()
-    })
+    find_upwards(|dir| dir.join("info.toml").exists())?
+        .context("Could not find info.toml. Are you in a cmetal project directory?")
 }
 
 /// Like `resolve_base_dir`, but for `cmetal update`: a workspace whose
@@ -402,11 +406,8 @@ pub fn resolve_workspace_dir() -> Result<PathBuf> {
         dir.join("info.toml").exists()
             || dir.join(".cmetal").join("manifest.json").exists()
             || dir.join(".clings").join("manifest.json").exists()
-    })
-    .with_context(|| {
-        "Could not find a cmetal workspace here (no info.toml or .cmetal/manifest.json)."
-            .to_string()
-    })
+    })?
+    .context("Could not find a cmetal workspace here (no info.toml or .cmetal/manifest.json).")
 }
 
 pub fn load_exercises(

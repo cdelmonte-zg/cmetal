@@ -15,7 +15,7 @@
 use crate::compiler::Compiler;
 use crate::exercise::{Exercise, VerifyResult};
 use anyhow::Result;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// The verdict on one exercise.
 ///
@@ -53,6 +53,21 @@ pub fn evaluate(exercise: &Exercise, compiler: &Compiler, build_dir: &Path) -> R
     } else {
         RunStatus::Failed(result)
     })
+}
+
+/// Writes the official solution into `my_solutions/` once the exercise
+/// is solved, returning where it landed.
+///
+/// This lives next to the decision rather than in [`crate::view`] on
+/// purpose: it touches the filesystem, and rendering must stay free of
+/// side effects so a status can be shown twice without writing twice.
+/// A missing or undecodable solution is not worth interrupting a pass
+/// for, so the failure is folded into `None`.
+pub fn reveal_if_passed(exercise: &Exercise, status: &RunStatus) -> Option<PathBuf> {
+    if !status.passed() {
+        return None;
+    }
+    exercise.reveal_solution().ok()
 }
 
 #[cfg(test)]

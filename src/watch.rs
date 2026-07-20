@@ -345,7 +345,8 @@ fn run_current_exercise(state: &AppState, compiler: &Compiler, build_dir: &Path)
             return false;
         }
     };
-    view::report_outcome(exercise, compiler, &status);
+    let revealed = runner::reveal_if_passed(exercise, &status);
+    view::report_outcome(exercise, compiler, &status, revealed.as_deref());
 
     // Navigation advice is watch-specific, so it stays here rather than
     // in the shared reporter.

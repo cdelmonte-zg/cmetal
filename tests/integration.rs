@@ -1148,11 +1148,18 @@ fn cli_list_shows_status_glyphs() {
         ],
     );
 
-    Command::new(cmetal_bin())
+    // Assert the setup step: if `run` regresses, this test must not
+    // report it as a broken list renderer.
+    let setup = Command::new(cmetal_bin())
         .args(["run", "solved"])
         .current_dir(tmp.path())
         .output()
         .unwrap();
+    assert!(
+        setup.status.success(),
+        "setup: `run solved` should pass, stdout: {}",
+        String::from_utf8_lossy(&setup.stdout)
+    );
 
     let output = Command::new(cmetal_bin())
         .arg("list")
@@ -1168,5 +1175,74 @@ fn cli_list_shows_status_glyphs() {
     assert!(
         stdout.contains("− skipped") && stdout.contains("(requires clang)"),
         "an unsupported exercise should be marked and annotated, got: {stdout}"
+    );
+}
+
+#[test]
+fn cli_verify_fails_when_an_exercise_file_is_missing() {
+    if !has_gcc() {
+        eprintln!("skipping: gcc not available");
+        return;
+    }
+    let tmp = TempDir::new().unwrap();
+    setup_project(
+        tmp.path(),
+        &[("ghost", "00_intro", "int main(void) { return 0; }\n")],
+    );
+    // An info.toml entry with no .c file behind it — what a packaging
+    // slip looks like. The sweep must not call that a pass.
+    std::fs::remove_file(tmp.path().join("exercises/00_intro/ghost.c")).unwrap();
+
+    let output = Command::new(cmetal_bin())
+        .arg("verify")
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "a missing exercise file must fail the sweep, stdout: {stdout}"
+    );
+    assert!(
+        !stdout.contains("All exercises passed"),
+        "the sweep must not claim success it did not verify: {stdout}"
+    );
+}
+
+#[test]
+fn cli_diff_defaults_to_the_current_exercise() {
+    if !has_gcc() {
+        eprintln!("skipping: gcc not available");
+        return;
+    }
+    let tmp = TempDir::new().unwrap();
+    setup_project(
+        tmp.path(),
+        &[("first", "00_intro", "int main(void) { return 0; }\n")],
+    );
+    // Materialize the workspace so a working copy exists to diff.
+    Command::new(cmetal_bin())
+        .arg("list")
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    let output = Command::new(cmetal_bin())
+        .arg("diff")
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        output.status.success(),
+        "`diff` with no argument should default to the current exercise, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        stdout.contains("first"),
+        "expected the current exercise to be named, got: {stdout}"
     );
 }

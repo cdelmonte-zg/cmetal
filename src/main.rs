@@ -70,8 +70,8 @@ enum Commands {
     Update,
     /// Show how your working copy differs from the pristine exercise
     Diff {
-        /// Exercise name
-        name: String,
+        /// Exercise name (defaults to current)
+        name: Option<String>,
     },
 }
 
@@ -100,11 +100,11 @@ fn main() -> Result<()> {
         }
         Some(Commands::Diff { name }) => {
             let base_dir = workspace::resolve_base_dir()?;
-            return commands::diff(&base_dir, name);
+            return commands::diff(&base_dir, name.clone(), compiler_kind);
         }
         Some(Commands::Reset { name: Some(name) }) => {
             let base_dir = workspace::resolve_base_dir()?;
-            return commands::reset_one(&base_dir, name, compiler_kind);
+            return commands::reset_one(&base_dir, name.clone(), compiler_kind);
         }
         _ => {}
     }

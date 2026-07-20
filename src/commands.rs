@@ -12,7 +12,7 @@
 
 use crate::app_state::AppState;
 use crate::compiler::{Compiler, CompilerKind};
-use crate::info_file::{ExerciseInfo, InfoFile};
+use crate::info_file::InfoFile;
 use crate::runner::{self, RunStatus};
 use crate::term;
 use crate::view;
@@ -37,7 +37,8 @@ pub fn run(
 
     let exercise = &state.exercises[idx];
     let status = runner::evaluate(exercise, compiler, build_dir)?;
-    view::report_outcome(exercise, compiler, &status);
+    let revealed = runner::reveal_if_passed(exercise, &status);
+    view::report_outcome(exercise, compiler, &status, revealed.as_deref());
 
     match status {
         RunStatus::Passed(_) => {
@@ -106,30 +107,30 @@ pub fn solution(
     name: Option<String>,
 ) -> Result<()> {
     let idx = state.resolve(name)?;
-    let name = state.exercises[idx].name().to_string();
+    let ex_name = state.exercises[idx].name().to_string();
 
-    let already_done = state.is_done(&name);
+    let already_done = state.is_done(&ex_name);
     let verified_now =
         !already_done && runner::evaluate(&state.exercises[idx], compiler, build_dir)?.passed();
 
     println!();
     if !already_done && !verified_now {
         term::print_warning(&format!(
-            "{name} is not solved yet. Fix it first — then the solution unlocks!"
+            "{ex_name} is not solved yet. Fix it first — then the solution unlocks!"
         ));
         println!();
         std::process::exit(1);
     }
 
     let path = state.exercises[idx].reveal_solution()?;
-    term::print_success(&format!("Solution for {name}: {}", path.display()));
+    term::print_success(&format!("Solution for {ex_name}: {}", path.display()));
     println!();
 
     // The verify pass that just unlocked the solution is a completion
     // like any other: persist it, or `cmetal list` keeps showing the
     // exercise as pending.
     if verified_now {
-        state.complete(&name)?;
+        state.complete(&ex_name)?;
     }
     Ok(())
 }
@@ -176,9 +177,15 @@ pub fn verify(state: &mut AppState, compiler: &Compiler, build_dir: &Path) -> Re
                 match status {
                     RunStatus::Passed(_) => passed_names.push(exercise.name().to_string()),
                     RunStatus::Failed(_) => all_passed = false,
-                    // Skipped and missing exercises are reported but do
-                    // not fail the sweep: neither is a wrong answer.
-                    RunStatus::Unsupported | RunStatus::Missing => {}
+                    // A missing file is not a wrong answer, but the
+                    // sweep must not claim success without having
+                    // judged the exercise — that is how a curriculum
+                    // shipped with an info.toml entry and no .c file
+                    // would pass verification silently.
+                    RunStatus::Missing => all_passed = false,
+                    // Skipped is different: the exercise is fine, this
+                    // compiler simply cannot judge it.
+                    RunStatus::Unsupported => {}
                 }
             }
             // A broken toolchain is not a wrong answer either, but the
@@ -220,34 +227,37 @@ pub fn reset_all(state: &AppState, info: &InfoFile, base_dir: &Path) -> Result<(
 /// `cmetal reset <name>` — restore one exercise's working copy to the
 /// pristine version and mark it pending again, leaving every other
 /// exercise's progress untouched. Compiles nothing.
-pub fn reset_one(base_dir: &Path, name: &str, compiler_kind: CompilerKind) -> Result<()> {
+pub fn reset_one(base_dir: &Path, name: String, compiler_kind: CompilerKind) -> Result<()> {
     let info = InfoFile::parse(&base_dir.join("info.toml"))?;
-    let ei = find_exercise_info(&info, name)?;
-    workspace::restore_exercise(base_dir, ei)?;
+    let mut state = state_without_compiler(base_dir, &info, compiler_kind)?;
+    let idx = state.resolve(Some(name))?;
+    let ex_name = state.exercises[idx].name().to_string();
+    workspace::restore_exercise(base_dir, &state.exercises[idx].info)?;
 
     // Un-done it, or watch mode would never offer it again and the
     // progress count would keep claiming it solved.
-    let work_dir = base_dir.join("my_exercises");
-    let exercises = workspace::load_exercises(&info, base_dir, &work_dir, compiler_kind);
-    let mut state = AppState::new(exercises, base_dir)?;
-    state.mark_pending(name);
+    state.mark_pending(&ex_name);
     state.save()?;
 
     println!();
     term::print_success(&format!(
-        "{name} restored to the pristine exercise and marked pending again \
+        "{ex_name} restored to the pristine exercise and marked pending again \
          (other progress kept)."
     ));
     println!();
     Ok(())
 }
 
-/// `cmetal diff <name>` — pristine exercise vs the learner's working
-/// copy. Compiles nothing, and reads no progress state.
-pub fn diff(base_dir: &Path, name: &str) -> Result<()> {
+/// `cmetal diff [name]` — pristine exercise vs the learner's working
+/// copy. Compiles nothing.
+pub fn diff(base_dir: &Path, name: Option<String>, compiler_kind: CompilerKind) -> Result<()> {
     let info = InfoFile::parse(&base_dir.join("info.toml"))?;
-    let ei = find_exercise_info(&info, name)?;
-    let rel = ei.rel_path();
+    let state = state_without_compiler(base_dir, &info, compiler_kind)?;
+    let idx = state.resolve(name)?;
+    let exercise = &state.exercises[idx];
+    let name = exercise.name();
+    let rel = exercise.info.rel_path();
+
     let pristine = std::fs::read_to_string(base_dir.join("exercises").join(&rel))
         .with_context(|| format!("Failed to read pristine {}", rel.display()))?;
     let my_path = base_dir.join("my_exercises").join(&rel);
@@ -277,15 +287,22 @@ pub fn diff(base_dir: &Path, name: &str) -> Result<()> {
     Ok(())
 }
 
-/// Looks up an exercise's metadata by name. The compiler-free commands
-/// resolve against the info file because they run without an engine;
-/// the rest go through `AppState::resolve`, which also honours "the
-/// current exercise" when no name is given.
-fn find_exercise_info<'a>(info: &'a InfoFile, name: &str) -> Result<&'a ExerciseInfo> {
-    info.exercises
-        .iter()
-        .find(|ei| ei.name == name)
-        .with_context(|| format!("Exercise '{name}' not found"))
+/// The progress state, built without probing a C compiler.
+///
+/// The compiler-free commands still need the exercise list and the
+/// "current exercise" pointer, so they can share `AppState::resolve`
+/// with the rest: one lookup, one error message, and `cmetal diff`
+/// with no argument means the same thing as `cmetal run` with no
+/// argument. `load_exercises` only needs the compiler's *name* to
+/// decide which exercises it could judge — nothing here spawns it.
+fn state_without_compiler(
+    base_dir: &Path,
+    info: &InfoFile,
+    compiler_kind: CompilerKind,
+) -> Result<AppState> {
+    let work_dir = base_dir.join("my_exercises");
+    let exercises = workspace::load_exercises(info, base_dir, &work_dir, compiler_kind);
+    AppState::new(exercises, base_dir)
 }
 
 /// Writes to stdout, tolerating ONLY a closed pipe (`cmetal diff x |

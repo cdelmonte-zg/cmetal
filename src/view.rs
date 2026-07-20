@@ -16,11 +16,23 @@ use crate::compiler::Compiler;
 use crate::exercise::Exercise;
 use crate::runner::RunStatus;
 use crate::term;
+use std::path::Path;
 
-/// The full report for one exercise: verdict, captured output, and the
-/// solution reveal on success. Callers add their own framing (headers)
-/// and navigation advice around it.
-pub fn report_outcome(exercise: &Exercise, compiler: &Compiler, status: &RunStatus) {
+/// The full report for one exercise: verdict, captured output, and —
+/// when the caller has already revealed it — where the official
+/// solution landed. Callers add their own framing (headers) and
+/// navigation advice around it.
+///
+/// `revealed` is passed in rather than produced here: writing the
+/// solution file is an action the command takes (see
+/// [`crate::runner::reveal_if_passed`]), and rendering must not have
+/// side effects.
+pub fn report_outcome(
+    exercise: &Exercise,
+    compiler: &Compiler,
+    status: &RunStatus,
+    revealed: Option<&Path>,
+) {
     match status {
         RunStatus::Passed(result) => {
             term::print_success(&format!("{} passed!", exercise.name()));
@@ -29,7 +41,8 @@ pub fn report_outcome(exercise: &Exercise, compiler: &Compiler, status: &RunStat
                 // appends the word "output" to the label.
                 term::print_stage_output("Program", &result.output);
             }
-            if let Ok(path) = exercise.reveal_solution() {
+            if let Some(path) = revealed {
+                println!("\r");
                 term::print_info(&format!(
                     "Official solution revealed: {} — compare it with yours!",
                     path.display()
