@@ -8,9 +8,9 @@ const STATE_FILE: &str = ".cmetal-state.txt";
 /// name; it is migrated transparently on first load.
 const LEGACY_STATE_FILE: &str = ".clings-state.txt";
 
-/// How many damaged progress files to keep before giving up on
-/// preserving another. A learner who has hit this many corruptions has
-/// a problem no backup will fix.
+/// Distinct `.damaged` names to try: the unsuffixed one plus `.1`
+/// through `.99`. A learner who has hit a hundred corruptions has a
+/// problem no backup will fix.
 const MAX_DAMAGED_BACKUPS: u32 = 100;
 
 pub struct AppState {
@@ -18,6 +18,10 @@ pub struct AppState {
     pub exercises: Vec<Exercise>,
     done: HashSet<String>,
     pub current_index: usize,
+    /// Set when the progress file exists but could not be read. It is
+    /// still on disk untouched; whoever is about to destroy it moves
+    /// it aside first.
+    unreadable: bool,
 }
 
 impl AppState {
@@ -43,6 +47,7 @@ impl AppState {
             exercises,
             done: HashSet::new(),
             current_index: 0,
+            unreadable: false,
         };
         state.load(&mut warn);
         state
@@ -63,7 +68,17 @@ impl AppState {
         let content = match std::fs::read_to_string(&self.state_path) {
             Ok(content) => content,
             Err(e) => {
-                self.preserve_damaged(e, warn);
+                // Left in place on purpose. Reading is not the moment
+                // to move a learner's file: `list`, `hint` and `diff`
+                // must leave a broken workspace exactly as they found
+                // it. `save` and `reset` preserve it when they are
+                // about to destroy it.
+                self.unreadable = true;
+                warn(&format!(
+                    "Could not read {} ({e}) — starting from empty progress. \
+                     The unreadable file is left in place.",
+                    self.state_path.display()
+                ));
                 return;
             }
         };
@@ -97,25 +112,34 @@ impl AppState {
         }
     }
 
-    /// Moves a progress file we could not read aside before anything
-    /// overwrites it.
+    /// Moves an unreadable progress file aside, so the caller can
+    /// destroy what is at `state_path` without destroying the only
+    /// copy of the learner's record.
     ///
     /// Corruption is usually partial — a few mangled bytes in a file
-    /// listing twenty solved exercises still reads as invalid UTF-8,
-    /// and the next save would replace all of it with one entry. The
-    /// copy costs a rename and leaves the learner something to salvage.
-    fn preserve_damaged(&self, error: std::io::Error, warn: &mut impl FnMut(&str)) {
-        let kept = self
-            .free_backup_path()
-            .filter(|kept| std::fs::rename(&self.state_path, kept).is_ok());
-        let fate = match &kept {
-            Some(kept) => format!("kept it as {} and started", kept.display()),
-            None => "started".to_string(),
-        };
-        warn(&format!(
-            "Could not read {} ({error}) — {fate} from empty progress.",
-            self.state_path.display()
-        ));
+    /// listing twenty solved exercises still reads as invalid UTF-8 —
+    /// so the copy costs one rename and leaves something to salvage.
+    /// A no-op when the file was read fine.
+    fn preserve_if_unreadable(&self) -> Result<()> {
+        if !self.unreadable {
+            return Ok(());
+        }
+        let kept = self.free_backup_path().with_context(|| {
+            format!(
+                "Refusing to destroy {}: it could not be read and there is no \
+                 free .damaged name left to move it to. Remove some of them, \
+                 or delete the file yourself.",
+                self.state_path.display()
+            )
+        })?;
+        std::fs::rename(&self.state_path, &kept).with_context(|| {
+            format!(
+                "Refusing to destroy {}: it could not be read and could not be \
+                 moved to {}.",
+                self.state_path.display(),
+                kept.display()
+            )
+        })
     }
 
     /// The first unused `.damaged` name.
@@ -141,22 +165,32 @@ impl AppState {
             return Vec::new();
         };
         let prefix = format!("{STATE_FILE}.damaged");
-        let mut found: Vec<PathBuf> = std::fs::read_dir(dir)
-            .into_iter()
+        // A workspace we cannot list simply has no backups to report.
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return Vec::new();
+        };
+        let mut found: Vec<(u32, PathBuf)> = entries
             .flatten()
-            .flatten()
-            .map(|entry| entry.path())
-            .filter(|path| {
-                path.file_name()
-                    .and_then(|n| n.to_str())
-                    .is_some_and(|n| n.starts_with(&prefix))
+            .filter_map(|entry| {
+                let path = entry.path();
+                let name = path.file_name()?.to_str()?.to_owned();
+                let suffix = name.strip_prefix(&prefix)?;
+                // Order by the number the names promise, not by their
+                // bytes: lexicographically `.10` sorts before `.2`.
+                let n = match suffix {
+                    "" => 0,
+                    rest => rest.strip_prefix('.')?.parse().ok()?,
+                };
+                Some((n, path))
             })
             .collect();
         found.sort();
-        found
+        found.into_iter().map(|(_, path)| path).collect()
     }
 
     pub fn save(&self) -> Result<()> {
+        self.preserve_if_unreadable()?;
+
         let current_name = self
             .exercises
             .get(self.current_index)
@@ -273,15 +307,21 @@ impl AppState {
             exercises,
             done: HashSet::new(),
             current_index: 0,
+            unreadable: false,
         }
     }
 
     pub fn reset(&self) -> Result<()> {
-        if self.state_path.exists() {
-            std::fs::remove_file(&self.state_path)
-                .with_context(|| "Failed to remove state file")?;
+        if !self.state_path.exists() {
+            return Ok(());
         }
-        Ok(())
+        // An unreadable file is moved aside rather than deleted: the
+        // learner asked to clear their progress, not to destroy the
+        // only copy of a record they may still want to read.
+        if self.unreadable {
+            return self.preserve_if_unreadable();
+        }
+        std::fs::remove_file(&self.state_path).with_context(|| "Failed to remove state file")
     }
 }
 

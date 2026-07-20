@@ -1358,7 +1358,60 @@ fn cli_run_still_reports_a_missing_toolchain() {
 /// No `has_gcc()` guard: recovering from a damaged progress file is
 /// pure state handling, so it must hold on a machine with no toolchain.
 #[test]
-fn cli_recovers_from_a_damaged_state_file() {
+fn cli_read_only_commands_leave_a_damaged_state_file_alone() {
+    let tmp = TempDir::new().unwrap();
+    setup_project(
+        tmp.path(),
+        &[("foo", "00_intro", "int main(void) { return 0; }\n")],
+    );
+    let state_file = tmp.path().join(".cmetal-state.txt");
+    let damaged = [0xff, 0xfe, 0x00, b'x'];
+
+    // Unreadable progress must not lock the learner out of the tool,
+    // and a command that only reads must leave the workspace exactly
+    // as it found it — no rename, no rewrite.
+    for args in [vec!["list"], vec!["hint", "foo"], vec!["diff"]] {
+        std::fs::write(&state_file, damaged).unwrap();
+        let output = Command::new(cmetal_bin())
+            .args(&args)
+            .current_dir(tmp.path())
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        assert!(
+            output.status.success(),
+            "`cmetal {}` should survive a damaged progress file, stderr: {stderr}",
+            args.join(" ")
+        );
+        // The warning belongs on stderr: `cmetal list` gets piped.
+        assert!(
+            stderr.contains("empty progress"),
+            "the learner must be told progress was lost, stderr: {stderr}"
+        );
+        assert!(
+            !String::from_utf8_lossy(&output.stdout).contains("empty progress"),
+            "the warning must not pollute stdout"
+        );
+        assert_eq!(
+            std::fs::read(&state_file).unwrap(),
+            damaged,
+            "`cmetal {}` only reads, so it must not touch the file",
+            args.join(" ")
+        );
+        assert!(
+            !tmp.path().join(".cmetal-state.txt.damaged").exists(),
+            "nothing should be moved aside before something destroys it"
+        );
+    }
+}
+
+#[test]
+fn cli_preserves_a_damaged_state_file_before_overwriting_it() {
+    if !has_gcc() {
+        eprintln!("skipping: gcc not available");
+        return;
+    }
     let tmp = TempDir::new().unwrap();
     setup_project(
         tmp.path(),
@@ -1366,60 +1419,38 @@ fn cli_recovers_from_a_damaged_state_file() {
     );
     let state_file = tmp.path().join(".cmetal-state.txt");
 
-    // Unreadable progress must not lock the learner out of the tool —
-    // least of all out of `reset`, whose job is to clear this file.
-    for args in [vec!["list"], vec!["hint", "foo"]] {
-        std::fs::write(&state_file, [0xff, 0xfe, 0x00, b'x']).unwrap();
+    // `run` saves on a pass, so it is the first thing that would
+    // clobber the unreadable file. A second corruption must not
+    // overwrite the first backup: the older record is the richer one.
+    let rich = b"DON'T EDIT THIS FILE!\n\nfoo\n\nfoo\n\xff bad\n";
+    let poor = b"DON'T EDIT THIS FILE!\n\n\n\n\xff bad\n";
+    for content in [rich.as_slice(), poor.as_slice()] {
+        std::fs::write(&state_file, content).unwrap();
         let output = Command::new(cmetal_bin())
-            .args(&args)
+            .args(["run", "foo"])
             .current_dir(tmp.path())
             .output()
             .unwrap();
         assert!(
             output.status.success(),
-            "`cmetal {}` should survive a damaged progress file, stderr: {}",
-            args.join(" "),
+            "run should pass, stderr: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        // The warning belongs on stderr: `cmetal list` is piped, and a
-        // diagnostic must not end up in the listing.
-        assert!(
-            String::from_utf8_lossy(&output.stderr).contains("empty progress"),
-            "the learner must be told progress was lost, stderr: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        assert!(
-            !String::from_utf8_lossy(&output.stdout).contains("empty progress"),
-            "the warning must not pollute stdout"
-        );
-        // The unreadable file is kept: corruption is usually partial,
-        // and overwriting it would destroy what was still salvageable.
-        assert!(
-            tmp.path().join(".cmetal-state.txt.damaged").exists(),
-            "the damaged progress file must be preserved"
-        );
-        std::fs::remove_file(tmp.path().join(".cmetal-state.txt.damaged")).unwrap();
     }
 
-    // A second corruption must not overwrite the first backup: the
-    // older record is usually the richer one.
-    let rich = b"DON'T EDIT THIS FILE!\n\nfoo\n\nfoo\n\xff bad\n";
-    let poor = b"DON'T EDIT THIS FILE!\n\n\n\n\xff bad\n";
-    for content in [rich.as_slice(), poor.as_slice()] {
-        std::fs::write(&state_file, content).unwrap();
-        Command::new(cmetal_bin())
-            .arg("list")
-            .current_dir(tmp.path())
-            .output()
-            .unwrap();
-    }
+    assert_eq!(
+        std::fs::read(tmp.path().join(".cmetal-state.txt.damaged")).unwrap(),
+        rich,
+        "the first backup must survive a later one"
+    );
+    assert_eq!(
+        std::fs::read(tmp.path().join(".cmetal-state.txt.damaged.1")).unwrap(),
+        poor,
+        "the second corruption gets its own name"
+    );
 
-    let first = std::fs::read(tmp.path().join(".cmetal-state.txt.damaged")).unwrap();
-    let second = std::fs::read(tmp.path().join(".cmetal-state.txt.damaged.1")).unwrap();
-    assert_eq!(first, rich, "the first backup must survive a later one");
-    assert_eq!(second, poor, "the second corruption gets its own name");
-
-    // reset is the recovery path: it must clear the damaged file.
+    // reset clears progress but must not destroy the salvageable
+    // copies — so it has to say what it left behind.
     std::fs::write(&state_file, [0xff, 0xfe, 0x00, b'x']).unwrap();
     let output = Command::new(cmetal_bin())
         .arg("reset")
@@ -1429,10 +1460,12 @@ fn cli_recovers_from_a_damaged_state_file() {
     assert!(output.status.success(), "reset should survive it too");
     assert!(
         !state_file.exists(),
-        "reset must remove the unreadable progress file"
+        "reset must clear the unreadable progress file"
     );
-    // reset does not delete the salvageable copies, so it must say so
-    // rather than claim a clean slate.
+    assert!(
+        tmp.path().join(".cmetal-state.txt.damaged.2").exists(),
+        "reset must move the unreadable file aside, not delete it"
+    );
     assert!(
         String::from_utf8_lossy(&output.stdout).contains("Left in place"),
         "reset must name the backups it kept, stdout: {}",
