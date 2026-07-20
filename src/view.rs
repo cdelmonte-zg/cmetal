@@ -1,11 +1,9 @@
 //! How exercise state is rendered.
 //!
-//! Every wording the learner sees for a [`RunStatus`] lives here, in
-//! one file, so the two renderings stay reviewable side by side: the
-//! full body for a single exercise, and the one-liner batch commands
-//! use. They differ in layout on purpose — they must not drift in
-//! vocabulary, which is what happened when each command carried its
-//! own copy.
+//! Every wording the learner sees for a [`RunStatus`] lives here, so
+//! the two renderings stay reviewable side by side: the full body for
+//! a single exercise, and the one-liner batch commands use. They
+//! differ in layout on purpose, and must not drift in vocabulary.
 //!
 //! Everything here goes through [`crate::term`], which terminates lines
 //! with `\r\n`; that makes it safe to call from watch mode's raw-mode
@@ -84,10 +82,8 @@ pub fn report_terse(exercise: &Exercise, status: &RunStatus) {
             exercise.name(),
             result.stage
         )),
-        // Skipped is a warning because it does not fail the sweep;
-        // missing is an error because it does. The glyphs have to
-        // match `verify`'s verdict, or a run exits non-zero with
-        // nothing in the per-exercise lines marked as failing.
+        // The glyphs must match `verify`'s verdict: skipped does not
+        // fail the sweep, missing does.
         RunStatus::Unsupported => term::print_warning(&format!(
             "{}: skipped (requires {})",
             exercise.name(),
