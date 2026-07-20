@@ -109,14 +109,17 @@ fn main() -> Result<()> {
         _ => {}
     }
 
-    // Everything below needs the engine: a compiler, the exercise list,
-    // and the learner's progress.
+    // Everything below needs the exercise list and the learner's
+    // progress. The C compiler is NOT part of that: `list`, `hint` and
+    // `reset` compile nothing, and probing for a toolchain they will
+    // never use would make them fail on a machine that has none. Each
+    // arm that actually compiles builds it for itself — which exercise
+    // supports which compiler is decided from `compiler_kind` alone.
     let base_dir = workspace::resolve_base_dir()
         .context("Could not find cmetal project. Make sure you're inside the cmetal directory.")?;
 
     let info = InfoFile::parse(&base_dir.join("info.toml"))?;
 
-    let compiler = Compiler::new(compiler_kind, &base_dir)?;
     let work_dir = workspace::prepare_workspace(&info, &base_dir)?;
     let exercises = workspace::load_exercises(&info, &base_dir, &work_dir, compiler_kind);
     let build_dir = base_dir.join("target").join("cmetal");
@@ -132,18 +135,30 @@ fn main() -> Result<()> {
         }
         None => watch::run_watch(
             &mut state,
-            &compiler,
+            &Compiler::new(compiler_kind, &base_dir)?,
             &work_dir,
             &build_dir,
             info.welcome_message.as_deref(),
         )?,
-        Some(Commands::Run { name }) => commands::run(&mut state, &compiler, &build_dir, name)?,
+        Some(Commands::Run { name }) => commands::run(
+            &mut state,
+            &Compiler::new(compiler_kind, &base_dir)?,
+            &build_dir,
+            name,
+        )?,
         Some(Commands::Hint { name, level }) => commands::hint(&state, name, level)?,
-        Some(Commands::Solution { name }) => {
-            commands::solution(&mut state, &compiler, &build_dir, name)?
-        }
+        Some(Commands::Solution { name }) => commands::solution(
+            &mut state,
+            &Compiler::new(compiler_kind, &base_dir)?,
+            &build_dir,
+            name,
+        )?,
         Some(Commands::List) => commands::list(&state),
-        Some(Commands::Verify) => commands::verify(&mut state, &compiler, &build_dir)?,
+        Some(Commands::Verify) => commands::verify(
+            &mut state,
+            &Compiler::new(compiler_kind, &base_dir)?,
+            &build_dir,
+        )?,
         Some(Commands::Reset { name: None }) => commands::reset_all(&state, &info, &base_dir)?,
     }
 

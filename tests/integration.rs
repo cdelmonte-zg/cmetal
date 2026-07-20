@@ -1247,12 +1247,11 @@ fn cli_diff_defaults_to_the_current_exercise() {
     );
 }
 
+/// No `has_gcc()` guard, deliberately: `diff <name>` compiles nothing,
+/// so it must work on a machine with no toolchain at all. The empty
+/// PATH proves it rather than assuming it.
 #[test]
 fn cli_diff_named_exercise_ignores_a_damaged_state_file() {
-    if !has_gcc() {
-        eprintln!("skipping: gcc not available");
-        return;
-    }
     let tmp = TempDir::new().unwrap();
     setup_project(
         tmp.path(),
@@ -1266,6 +1265,7 @@ fn cli_diff_named_exercise_ignores_a_damaged_state_file() {
     let output = Command::new(cmetal_bin())
         .args(["diff", "foo"])
         .current_dir(tmp.path())
+        .env("PATH", "")
         .output()
         .unwrap();
 
@@ -1281,5 +1281,62 @@ fn cli_diff_named_exercise_ignores_a_damaged_state_file() {
         std::fs::read(&state_file).unwrap(),
         vec![0xff, 0xfe, 0x00, b'x'],
         "diff <name> must leave the progress file untouched"
+    );
+}
+
+// ---- Commands that compile nothing must not need a toolchain ----
+//
+// These run with an empty PATH, so a compiler cannot be found even if
+// one is installed. That is the point: `list`, `hint` and `reset`
+// never invoke one, and probing for a toolchain they will never use
+// would lock out anyone who has not installed one yet.
+
+#[test]
+fn cli_compiler_free_commands_work_without_a_toolchain() {
+    let tmp = TempDir::new().unwrap();
+    setup_project(
+        tmp.path(),
+        &[("foo", "00_intro", "int main(void) { return 0; }\n")],
+    );
+
+    for args in [vec!["list"], vec!["hint", "foo"], vec!["reset"]] {
+        let output = Command::new(cmetal_bin())
+            .args(&args)
+            .current_dir(tmp.path())
+            .env("PATH", "")
+            .output()
+            .unwrap();
+
+        assert!(
+            output.status.success(),
+            "`cmetal {}` must not require a compiler, stderr: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
+fn cli_run_still_reports_a_missing_toolchain() {
+    let tmp = TempDir::new().unwrap();
+    setup_project(
+        tmp.path(),
+        &[("foo", "00_intro", "int main(void) { return 0; }\n")],
+    );
+
+    let output = Command::new(cmetal_bin())
+        .args(["run", "foo"])
+        .current_dir(tmp.path())
+        .env("PATH", "")
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    // Deferring construction must not turn "no compiler installed"
+    // into a confusing failure further down.
+    assert!(!output.status.success(), "run without gcc should fail");
+    assert!(
+        stderr.contains("gcc not found"),
+        "expected a clear missing-toolchain error, got: {stderr}"
     );
 }
