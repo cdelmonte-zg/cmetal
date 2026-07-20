@@ -590,13 +590,14 @@ mod tests {
             .collect()
     }
 
-    /// The file is preserved once, not once per save. Watch mode saves
-    /// on every navigation keypress, so a flag left set would file the
-    /// learner's own valid progress away as damaged, over and over.
-    /// The warning must not point at a command that discards the
-    /// learner's work. It once recommended `cmetal reset`, which
-    /// overwrites every working copy with the pristine exercise — a
-    /// corrupt progress file is not worth losing hours of code over.
+    /// The warning must recommend no cmetal command at all.
+    ///
+    /// It once said to run `cmetal reset`, which overwrites every
+    /// working copy with the pristine exercise — hours of the
+    /// learner's code, to tidy away a file that costs nothing to
+    /// leave alone. The tool cannot know which commands are safe for
+    /// the state they are in, so the only remedies it may offer here
+    /// are inert ones: delete the file, or do nothing.
     #[test]
     fn the_damaged_file_warning_recommends_nothing_destructive() {
         let tmp = tempfile::tempdir().unwrap();
@@ -608,12 +609,15 @@ mod tests {
 
         assert_eq!(warnings.len(), 1);
         assert!(
-            !warnings[0].contains("reset"),
-            "the warning must not send the learner to a destructive command: {}",
+            !warnings[0].contains("cmetal "),
+            "the warning must not send the learner to run anything: {}",
             warnings[0]
         );
     }
 
+    /// The file is preserved once, not once per save. Watch mode saves
+    /// on every navigation keypress, so a flag left set would file the
+    /// learner's own valid progress away as damaged, over and over.
     #[test]
     fn repeated_saves_preserve_only_once() {
         let tmp = tempfile::tempdir().unwrap();

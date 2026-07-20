@@ -220,18 +220,30 @@ pub fn verify(state: &mut AppState, compiler: &Compiler, build_dir: &Path) -> Re
 
 /// `cmetal reset` with no name — wipe progress and restore every
 /// working copy.
-pub fn reset_all(state: &mut AppState, info: &InfoFile, base_dir: &Path) -> Result<()> {
-    // Say what is about to be discarded, before discarding it. The
-    // past-tense success line below is no use to someone who did not
-    // know `reset` overwrites the code they wrote.
+pub fn reset_all(
+    state: &mut AppState,
+    info: &InfoFile,
+    base_dir: &Path,
+    force: bool,
+) -> Result<()> {
+    // Say what is about to be discarded and let the learner stop it.
+    // The past-tense success line below is no use to someone who did
+    // not know `reset` overwrites the code they wrote — and an alarm
+    // that only narrates would be worse than none.
     let edited = workspace::edited_exercises(info, base_dir);
-    if !edited.is_empty() {
+    if !edited.is_empty() && !force {
         println!();
         term::print_warning(&format!(
-            "Discarding your work on {} exercise(s): {}.",
+            "This discards your work on {} exercise(s): {}.",
             edited.len(),
             edited.join(", ")
         ));
+        if !term::confirm("Continue?")? {
+            println!();
+            term::print_info("Nothing was changed.");
+            println!();
+            return Ok(());
+        }
     }
 
     state.reset()?;

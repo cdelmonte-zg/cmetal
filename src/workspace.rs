@@ -474,21 +474,35 @@ pub fn restore_exercise(base_dir: &Path, ei: &ExerciseInfo) -> Result<()> {
 /// Working copies that differ from their pristine exercise — the work
 /// a restore is about to discard.
 pub fn edited_exercises(info: &InfoFile, base_dir: &Path) -> Vec<String> {
+    let pristine_dir = base_dir.join("exercises");
+    let work_dir = work_dir(base_dir);
     info.exercises
         .iter()
         .filter(|ei| {
             let rel = ei.rel_path();
-            let pristine = std::fs::read(base_dir.join("exercises").join(&rel));
-            let mine = std::fs::read(work_dir(base_dir).join(&rel));
-            match (pristine, mine) {
-                (Ok(pristine), Ok(mine)) => pristine != mine,
-                // No working copy yet, or no pristine to compare
-                // against: nothing of the learner's to lose.
-                _ => false,
-            }
+            differs(&pristine_dir.join(&rel), &work_dir.join(&rel))
         })
         .map(|ei| ei.name.clone())
         .collect()
+}
+
+/// Whether the learner's copy differs from the pristine exercise.
+///
+/// Sizes are compared first: an edited exercise almost always changes
+/// length, so most files never have to be read at all. A file we
+/// cannot read on either side counts as unchanged — there is nothing
+/// of the learner's to lose in a copy that is not there.
+fn differs(pristine: &Path, mine: &Path) -> bool {
+    let (Ok(a), Ok(b)) = (std::fs::metadata(pristine), std::fs::metadata(mine)) else {
+        return false;
+    };
+    if a.len() != b.len() {
+        return true;
+    }
+    match (std::fs::read(pristine), std::fs::read(mine)) {
+        (Ok(a), Ok(b)) => a != b,
+        _ => false,
+    }
 }
 
 /// Overwrite every workspace file with its pristine version from `exercises/`.

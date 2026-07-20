@@ -250,6 +250,9 @@ fn cli_reset_clears_state() {
     let output = Command::new(cmetal_bin())
         .arg("reset")
         .current_dir(tmp.path())
+        // No terminal on stdin: the confirmation prompt must not be
+        // reached, whatever cargo test was launched from.
+        .stdin(std::process::Stdio::null())
         .output()
         .unwrap();
 
@@ -362,6 +365,9 @@ fn cli_reset_restores_workspace() {
     let output = Command::new(cmetal_bin())
         .arg("reset")
         .current_dir(tmp.path())
+        // No terminal on stdin: the confirmation prompt must not be
+        // reached, whatever cargo test was launched from.
+        .stdin(std::process::Stdio::null())
         .output()
         .unwrap();
     assert!(output.status.success(), "reset should succeed");
@@ -1455,6 +1461,9 @@ fn cli_preserves_a_damaged_state_file_before_overwriting_it() {
     let output = Command::new(cmetal_bin())
         .arg("reset")
         .current_dir(tmp.path())
+        // No terminal on stdin: the confirmation prompt must not be
+        // reached, whatever cargo test was launched from.
+        .stdin(std::process::Stdio::null())
         .output()
         .unwrap();
     assert!(output.status.success(), "reset should survive it too");
@@ -1499,6 +1508,9 @@ fn cli_reset_announces_the_work_it_discards() {
     let output = Command::new(cmetal_bin())
         .arg("reset")
         .current_dir(tmp.path())
+        // No terminal on stdin: the confirmation prompt must not be
+        // reached, whatever cargo test was launched from.
+        .stdin(std::process::Stdio::null())
         .output()
         .unwrap();
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -1507,13 +1519,51 @@ fn cli_reset_announces_the_work_it_discards() {
     // before doing it, naming what goes.
     assert!(output.status.success());
     assert!(
-        stdout.contains("Discarding your work") && stdout.contains("foo"),
+        stdout.contains("discards your work") && stdout.contains("foo"),
         "reset must name the work it discards, stdout: {stdout}"
     );
-    let discard_at = stdout.find("Discarding your work").unwrap();
+    let discard_at = stdout.find("discards your work").unwrap();
     let done_at = stdout.find("Progress reset").unwrap();
     assert!(
         discard_at < done_at,
         "the warning must come before the deed, stdout: {stdout}"
+    );
+}
+
+#[test]
+fn cli_reset_force_skips_the_prompt_and_discards() {
+    if !has_gcc() {
+        eprintln!("skipping: gcc not available");
+        return;
+    }
+    let tmp = TempDir::new().unwrap();
+    setup_project(
+        tmp.path(),
+        &[("foo", "00_intro", "int main(void) { return 1; }\n")],
+    );
+    Command::new(cmetal_bin())
+        .arg("list")
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    let work = tmp.path().join("my_exercises/00_intro/foo.c");
+    std::fs::write(&work, "// hours of work\n").unwrap();
+
+    let output = Command::new(cmetal_bin())
+        .args(["reset", "--force"])
+        .current_dir(tmp.path())
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert_eq!(
+        std::fs::read_to_string(&work).unwrap(),
+        "int main(void) { return 1; }\n",
+        "--force must still restore the pristine exercise"
+    );
+    assert!(
+        !String::from_utf8_lossy(&output.stdout).contains("discards your work"),
+        "--force means the learner already decided; do not lecture them"
     );
 }

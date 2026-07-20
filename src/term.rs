@@ -1,3 +1,11 @@
+//! Two warning channels, with a rule for choosing:
+//!
+//! - [`print_warning`] for warnings that are part of a command's own
+//!   report, where the reader is looking at that command's output;
+//! - [`warn_stderr`] for diagnostics emitted while starting up, which
+//!   any command can produce and which must not end up inside the
+//!   output someone is piping from `cmetal list`.
+
 use crossterm::style::{Attribute, Color, SetAttribute, SetForegroundColor};
 use std::io::{self, IsTerminal};
 
@@ -40,6 +48,8 @@ pub fn print_warning(msg: &str) {
 /// A warning that must not land in stdout: diagnostics about a broken
 /// workspace would otherwise show up in the output of `cmetal list`
 /// and anything piped from it.
+/// A startup diagnostic, kept out of stdout.
+///
 /// Unlike the helpers above it emits no carriage return and no colour
 /// unless stderr is a terminal: this never runs inside watch mode's
 /// raw screen, and stderr is the stream people redirect into logs.
@@ -105,6 +115,23 @@ pub fn print_stage_output(stage: &str, output: &str) {
             println!("  {line}\r");
         }
     }
+}
+
+/// Asks a yes/no question, defaulting to no.
+///
+/// Returns true without asking when stdin is not a terminal: a script
+/// or CI run has no one to answer, and the command it typed is the
+/// answer. Interactive callers get a real choice.
+pub fn confirm(question: &str) -> std::io::Result<bool> {
+    use std::io::{BufRead, Write};
+    if !io::stdin().is_terminal() {
+        return Ok(true);
+    }
+    print!("  {question} [y/N] ");
+    io::stdout().flush()?;
+    let mut answer = String::new();
+    io::stdin().lock().read_line(&mut answer)?;
+    Ok(matches!(answer.trim().to_lowercase().as_str(), "y" | "yes"))
 }
 
 pub fn clear_screen() {

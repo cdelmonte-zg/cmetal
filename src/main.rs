@@ -66,6 +66,9 @@ enum Commands {
     Reset {
         /// Exercise name: restore only its working copy (progress kept)
         name: Option<String>,
+        /// Skip the confirmation prompt
+        #[arg(long)]
+        force: bool,
     },
     /// Update the workspace to the curriculum embedded in this binary
     Update,
@@ -103,7 +106,9 @@ fn main() -> Result<()> {
             let base_dir = workspace::resolve_base_dir()?;
             return commands::diff(&base_dir, name.clone(), compiler_kind);
         }
-        Some(Commands::Reset { name: Some(name) }) => {
+        Some(Commands::Reset {
+            name: Some(name), ..
+        }) => {
             let base_dir = workspace::resolve_base_dir()?;
             return commands::reset_one(&base_dir, name.clone(), compiler_kind);
         }
@@ -136,7 +141,7 @@ fn main() -> Result<()> {
         Some(Commands::Init { .. })
         | Some(Commands::Update)
         | Some(Commands::Diff { .. })
-        | Some(Commands::Reset { name: Some(_) }) => {
+        | Some(Commands::Reset { name: Some(_), .. }) => {
             unreachable!("file-only commands are dispatched before engine setup")
         }
         None => watch::run_watch(
@@ -153,7 +158,9 @@ fn main() -> Result<()> {
         }
         Some(Commands::List) => commands::list(&state),
         Some(Commands::Verify) => commands::verify(&mut state, &compiler()?, &build_dir)?,
-        Some(Commands::Reset { name: None }) => commands::reset_all(&mut state, &info, &base_dir)?,
+        Some(Commands::Reset { name: None, force }) => {
+            commands::reset_all(&mut state, &info, &base_dir, force)?
+        }
     }
 
     Ok(())
