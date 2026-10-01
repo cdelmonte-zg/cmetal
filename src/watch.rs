@@ -192,9 +192,9 @@ pub fn run_watch(
                 }
                 if state.all_done() {
                     term::clear_screen();
-                    write_stdout("\r")?;
+                    write_stdout("\r\n")?;
                     term::print_success("All exercises completed! Congratulations!")?;
-                    write_stdout("\r")?;
+                    write_stdout("\r\n")?;
                     break;
                 }
                 state.next_pending();
@@ -226,7 +226,7 @@ pub fn run_watch(
                     let hints = exercise.hints();
                     term::clear_screen();
                     print_watch_header(state, compiler)?;
-                    write_stdout("\r")?;
+                    write_stdout("\r\n")?;
 
                     if hints.is_empty() {
                         term::print_warning("No hints available for this exercise.")?;
@@ -234,11 +234,11 @@ pub fn run_watch(
                         let current = hint_level.min(hints.len() - 1);
                         for i in 0..=current {
                             term::print_header(&format!("Hint {} of {}:", i + 1, hints.len()))?;
-                            write_stdout("\r")?;
+                            write_stdout("\r\n")?;
                             for line in hints[i].lines() {
                                 write_stdout(&format!("  {line}\r\n"))?;
                             }
-                            write_stdout("\r")?;
+                            write_stdout("\r\n")?;
                         }
 
                         if current + 1 < hints.len() {
@@ -251,16 +251,16 @@ pub fn run_watch(
                             term::print_info("No more hints. You've seen them all!")?;
                         }
                     }
-                    write_stdout("\r")?;
+                    write_stdout("\r\n")?;
                     print_watch_commands()?;
                 }
             }
             Ok(WatchEvent::Key(KeyCode::Char('l'))) => {
                 // List exercises
                 term::clear_screen();
-                write_stdout("\r")?;
+                write_stdout("\r\n")?;
                 term::print_header("Exercises:")?;
-                write_stdout("\r")?;
+                write_stdout("\r\n")?;
                 for (i, ex) in state.exercises.iter().enumerate() {
                     write_stdout(&format!(
                         "  {} {}{}\r\n",
@@ -269,7 +269,7 @@ pub fn run_watch(
                         view::compiler_note(ex)
                     ))?;
                 }
-                write_stdout("\r")?;
+                write_stdout("\r\n")?;
                 print_watch_commands()?;
             }
             Ok(WatchEvent::Key(KeyCode::Char('r'))) => {
@@ -295,7 +295,7 @@ pub fn run_watch(
 
 fn print_watch_header(state: &AppState, compiler: &Compiler) -> anyhow::Result<()> {
     let (done, total) = state.progress();
-    write_stdout("\r")?;
+    write_stdout("\r\n")?;
     term::print_header(&format!(
         "cmetal v{} [{}]  Exercise {} of {}",
         env!("CARGO_PKG_VERSION"),
@@ -304,19 +304,19 @@ fn print_watch_header(state: &AppState, compiler: &Compiler) -> anyhow::Result<(
         total
     ))?;
     term::print_progress(done, total)?;
-    write_stdout("\r")?;
+    write_stdout("\r\n")?;
 
     Ok(())
 }
 
 fn print_watch_commands() -> anyhow::Result<()> {
-    write_stdout("\r")?;
+    write_stdout("\r\n")?;
     let mut stdout = io::stdout();
     let _ = crossterm::execute!(
         stdout,
         crossterm::style::SetForegroundColor(crossterm::style::Color::DarkGrey)
     );
-    write_stdout("  [n] next  [p] prev  [h] hint  [l] list  [r] re-run  [q] quit\r")?;
+    write_stdout("  [n] next  [p] prev  [h] hint  [l] list  [r] re-run  [q] quit\r\n")?;
     let _ = crossterm::execute!(
         stdout,
         crossterm::style::SetAttribute(crossterm::style::Attribute::Reset)
@@ -340,7 +340,7 @@ fn run_current_exercise(
 
     write_stdout(&format!("  Exercise: {}\r\n", exercise.name()))?;
     write_stdout(&format!("  File: {}\r\n", exercise.path.display()))?;
-    write_stdout("\r")?;
+    write_stdout("\r\n")?;
 
     // Watch mode never propagates: a broken toolchain must not tear
     // down the alternate screen mid-session, so it is reported like

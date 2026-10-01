@@ -158,12 +158,13 @@ pub fn list(state: &AppState) -> anyhow::Result<()> {
         }
 
         write_stdout(&format!(
-            "    {} {}{}\n\n",
+            "    {} {}{}\n",
             view::status_marker(state, i, exercise),
             exercise.name(),
             view::compiler_note(exercise)
         ))?;
     }
+    write_stdout("\n")?;
 
     Ok(())
 }
