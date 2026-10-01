@@ -6,43 +6,50 @@
 //!   any command can produce and which must not end up inside the
 //!   output someone is piping from `cmetal list`.
 
+use anyhow::Context;
 use crossterm::style::{Attribute, Color, SetAttribute, SetForegroundColor};
 use std::io::{self, IsTerminal};
 
-pub fn print_success(msg: &str) {
+pub fn print_success(msg: &str) -> anyhow::Result<()> {
     let mut stdout = io::stdout();
     let _ = crossterm::execute!(
         stdout,
         SetForegroundColor(Color::Green),
         SetAttribute(Attribute::Bold)
     );
-    print!("  ✓ ");
+    write_stdout("  ✓ ")?;
     let _ = crossterm::execute!(stdout, SetAttribute(Attribute::Reset));
-    println!("{msg}\r");
+    write_stdout(&format!("{msg}\r\n"))?;
+
+    Ok(())
 }
 
-pub fn print_error(msg: &str) {
+pub fn print_error(msg: &str) -> anyhow::Result<()> {
     let mut stdout = io::stdout();
     let _ = crossterm::execute!(
         stdout,
         SetForegroundColor(Color::Red),
         SetAttribute(Attribute::Bold)
     );
-    print!("  ✗ ");
+    write_stdout("  ✗ ")?;
     let _ = crossterm::execute!(stdout, SetAttribute(Attribute::Reset));
-    println!("{msg}\r");
+    write_stdout(&format!("{msg}\r\n"))?;
+
+    Ok(())
 }
 
-pub fn print_warning(msg: &str) {
+pub fn print_warning(msg: &str) -> anyhow::Result<()> {
     let mut stdout = io::stdout();
     let _ = crossterm::execute!(
         stdout,
         SetForegroundColor(Color::Yellow),
         SetAttribute(Attribute::Bold)
     );
-    print!("  ⚠ ");
+    write_stdout("  ⚠ ")?;
     let _ = crossterm::execute!(stdout, SetAttribute(Attribute::Reset));
-    println!("{msg}\r");
+    write_stdout(&format!("{msg}\r\n"))?;
+
+    Ok(())
 }
 
 /// A warning that must not land in stdout: diagnostics about a broken
@@ -69,51 +76,68 @@ pub fn warn_stderr(msg: &str) {
     eprintln!("{msg}");
 }
 
-pub fn print_info(msg: &str) {
+pub fn print_info(msg: &str) -> anyhow::Result<()> {
     let mut stdout = io::stdout();
     let _ = crossterm::execute!(stdout, SetForegroundColor(Color::Cyan));
-    print!("  ℹ ");
+    write_stdout("  ℹ ")?;
     let _ = crossterm::execute!(stdout, SetAttribute(Attribute::Reset));
-    println!("{msg}\r");
+    write_stdout(&format!("{msg}\r\n"))?;
+
+    Ok(())
 }
 
-pub fn print_header(msg: &str) {
+pub fn print_header(msg: &str) -> anyhow::Result<()> {
     let mut stdout = io::stdout();
     let _ = crossterm::execute!(
         stdout,
         SetForegroundColor(Color::Magenta),
         SetAttribute(Attribute::Bold)
     );
-    println!("\r\n  {msg}\r");
+    write_stdout(&format!("\r\n  {msg}\r\n"))?;
     let _ = crossterm::execute!(stdout, SetAttribute(Attribute::Reset));
+
+    Ok(())
 }
 
-pub fn print_progress(done: usize, total: usize) {
+pub fn print_progress(done: usize, total: usize) -> anyhow::Result<()> {
     let mut stdout = io::stdout();
     let bar_width = 30;
     let filled = (done * bar_width).checked_div(total).unwrap_or(0);
     let empty = bar_width - filled;
 
     let _ = crossterm::execute!(stdout, SetForegroundColor(Color::Cyan));
-    print!("  Completed: [");
+    write_stdout("  Completed: [\n")?;
     let _ = crossterm::execute!(stdout, SetForegroundColor(Color::Green));
-    print!("{}", "█".repeat(filled));
+    write_stdout(&format!("{}\n", "█".repeat(filled)))?;
     let _ = crossterm::execute!(stdout, SetForegroundColor(Color::DarkGrey));
-    print!("{}", "░".repeat(empty));
+    write_stdout(&format!("{}\n", "░".repeat(empty)))?;
     let _ = crossterm::execute!(stdout, SetForegroundColor(Color::Cyan));
-    println!("] {done}/{total}\r");
+    write_stdout(&format!("] {done}/{total}\r\n"))?;
     let _ = crossterm::execute!(stdout, SetAttribute(Attribute::Reset));
+
+    Ok(())
 }
 
-pub fn print_stage_output(stage: &str, output: &str) {
+pub fn print_stage_output(stage: &str, output: &str) -> anyhow::Result<()> {
     if !output.is_empty() {
         let mut stdout = io::stdout();
         let _ = crossterm::execute!(stdout, SetForegroundColor(Color::DarkGrey));
-        println!("\r\n  ── {stage} output ──\r");
+        write_stdout(&format!("\r\n  ── {stage} output ──\r\n"))?;
         let _ = crossterm::execute!(stdout, SetAttribute(Attribute::Reset));
         for line in output.lines() {
-            println!("  {line}\r");
+            write_stdout(&format!("  {line}\r\n"))?;
         }
+    }
+
+    Ok(())
+}
+
+pub fn write_stdout(text: &str) -> anyhow::Result<()> {
+    use std::io::Write;
+    match std::io::stdout().write_all(text.as_bytes()) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+        Err(e) => Err(e).context("Failed to write to stdout"),
     }
 }
 
@@ -127,12 +151,12 @@ pub fn print_stage_output(stage: &str, output: &str) {
 /// still has a terminal on stdin, so a prompt written to stdout would
 /// disappear into the pipe and leave the learner staring at a program
 /// that looks hung.
-pub fn confirm(question: &str) -> std::io::Result<bool> {
+pub fn confirm(question: &str) -> anyhow::Result<bool> {
     use std::io::{BufRead, Write};
     if !io::stdin().is_terminal() {
         return Ok(true);
     }
-    eprint!("  {question} [y/N] ");
+    write_stdout(&format!("  {question} [y/N] \n"))?;
     io::stderr().flush()?;
     let mut answer = String::new();
     io::stdin().lock().read_line(&mut answer)?;

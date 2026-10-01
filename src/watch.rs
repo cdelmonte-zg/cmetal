@@ -145,7 +145,7 @@ pub fn run_watch(
     let _guard = TerminalGuard::enter()?;
 
     // Initial run
-    print_watch_header(state, compiler);
+    print_watch_header(state, compiler)?;
     last_run_success = run_current_exercise(state, compiler, build_dir);
     print_watch_commands();
 
@@ -177,7 +177,7 @@ pub fn run_watch(
                 last_mtime = new_mtime;
 
                 term::clear_screen();
-                print_watch_header(state, compiler);
+                print_watch_header(state, compiler)?;
                 last_run_success = run_current_exercise(state, compiler, build_dir);
                 print_watch_commands();
 
@@ -186,7 +186,7 @@ pub fn run_watch(
             }
             Ok(WatchEvent::Key(KeyCode::Char('n'))) => {
                 // Mark current as done only if it passed, then advance
-                if last_run_success {
+                if last_run_success? {
                     if let Some(name) = state.current_exercise().map(|e| e.name().to_string()) {
                         state.mark_done(&name);
                     }
@@ -194,7 +194,7 @@ pub fn run_watch(
                 if state.all_done() {
                     term::clear_screen();
                     println!("\r");
-                    term::print_success("All exercises completed! Congratulations!");
+                    term::print_success("All exercises completed! Congratulations!")?;
                     println!("\r");
                     break;
                 }
@@ -203,7 +203,7 @@ pub fn run_watch(
                 hint_level = 0; // Reset hints for new exercise
                 last_mtime = current_exercise_mtime(state);
                 term::clear_screen();
-                print_watch_header(state, compiler);
+                print_watch_header(state, compiler)?;
                 last_run_success = run_current_exercise(state, compiler, build_dir);
                 print_watch_commands();
                 while rx.try_recv().is_ok() {}
@@ -215,7 +215,7 @@ pub fn run_watch(
                     hint_level = 0;
                     last_mtime = current_exercise_mtime(state);
                     term::clear_screen();
-                    print_watch_header(state, compiler);
+                    print_watch_header(state, compiler)?;
                     last_run_success = run_current_exercise(state, compiler, build_dir);
                     print_watch_commands();
                     while rx.try_recv().is_ok() {}
@@ -226,15 +226,15 @@ pub fn run_watch(
                 if let Some(exercise) = state.current_exercise() {
                     let hints = exercise.hints();
                     term::clear_screen();
-                    print_watch_header(state, compiler);
+                    print_watch_header(state, compiler)?;
                     println!("\r");
 
                     if hints.is_empty() {
-                        term::print_warning("No hints available for this exercise.");
+                        term::print_warning("No hints available for this exercise.")?;
                     } else {
                         let current = hint_level.min(hints.len() - 1);
                         for i in 0..=current {
-                            term::print_header(&format!("Hint {} of {}:", i + 1, hints.len()));
+                            term::print_header(&format!("Hint {} of {}:", i + 1, hints.len()))?;
                             println!("\r");
                             for line in hints[i].lines() {
                                 println!("  {line}\r");
@@ -247,9 +247,9 @@ pub fn run_watch(
                             term::print_info(&format!(
                                 "Press 'h' again for the next hint ({} more).",
                                 hints.len() - current - 1
-                            ));
+                            ))?;
                         } else {
-                            term::print_info("No more hints. You've seen them all!");
+                            term::print_info("No more hints. You've seen them all!")?;
                         }
                     }
                     println!("\r");
@@ -260,7 +260,7 @@ pub fn run_watch(
                 // List exercises
                 term::clear_screen();
                 println!("\r");
-                term::print_header("Exercises:");
+                term::print_header("Exercises:")?;
                 println!("\r");
                 for (i, ex) in state.exercises.iter().enumerate() {
                     println!(
@@ -276,7 +276,7 @@ pub fn run_watch(
             Ok(WatchEvent::Key(KeyCode::Char('r'))) => {
                 // Re-run current exercise
                 term::clear_screen();
-                print_watch_header(state, compiler);
+                print_watch_header(state, compiler)?;
                 last_run_success = run_current_exercise(state, compiler, build_dir);
                 print_watch_commands();
                 while rx.try_recv().is_ok() {}
@@ -294,7 +294,7 @@ pub fn run_watch(
     Ok(())
 }
 
-fn print_watch_header(state: &AppState, compiler: &Compiler) {
+fn print_watch_header(state: &AppState, compiler: &Compiler) -> anyhow::Result<()> {
     let (done, total) = state.progress();
     println!("\r");
     term::print_header(&format!(
@@ -303,9 +303,11 @@ fn print_watch_header(state: &AppState, compiler: &Compiler) {
         compiler.kind(),
         state.current_index + 1,
         total
-    ));
-    term::print_progress(done, total);
+    ))?;
+    term::print_progress(done, total)?;
     println!("\r");
+
+    Ok(())
 }
 
 fn print_watch_commands() {
@@ -322,12 +324,16 @@ fn print_watch_commands() {
     );
 }
 
-fn run_current_exercise(state: &AppState, compiler: &Compiler, build_dir: &Path) -> bool {
+fn run_current_exercise(
+    state: &AppState,
+    compiler: &Compiler,
+    build_dir: &Path,
+) -> anyhow::Result<bool> {
     let exercise = match state.current_exercise() {
         Some(e) => e,
         None => {
-            term::print_warning("No exercises found.");
-            return false;
+            term::print_warning("No exercises found.")?;
+            return Ok(false);
         }
     };
 
@@ -341,24 +347,24 @@ fn run_current_exercise(state: &AppState, compiler: &Compiler, build_dir: &Path)
     let status = match runner::evaluate(exercise, compiler, build_dir) {
         Ok(status) => status,
         Err(e) => {
-            term::print_error(&format!("Error verifying {}: {e:#}", exercise.name()));
-            return false;
+            term::print_error(&format!("Error verifying {}: {e:#}", exercise.name()))?;
+            return Ok(false);
         }
     };
     let revealed = runner::reveal_if_passed(exercise, &status);
-    view::report_outcome(exercise, compiler, &status, revealed.as_deref());
+    view::report_outcome(exercise, compiler, &status, revealed.as_deref())?;
 
     // Navigation advice is watch-specific, so it stays here rather than
     // in the shared reporter.
     match &status {
         RunStatus::Passed(_) => {
-            term::print_info("Press 'n' to move to the next exercise.");
+            term::print_info("Press 'n' to move to the next exercise.")?;
         }
         RunStatus::Unsupported => {
-            term::print_info("Press 'n' to skip it, or restart cmetal with --compiler.");
+            term::print_info("Press 'n' to skip it, or restart cmetal with --compiler.")?;
         }
         _ => {}
     }
 
-    status.passed()
+    Ok(status.passed())
 }

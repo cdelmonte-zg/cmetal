@@ -14,10 +14,10 @@ use crate::app_state::AppState;
 use crate::compiler::{Compiler, CompilerKind};
 use crate::info_file::{ExerciseInfo, InfoFile};
 use crate::runner::{self, RunStatus};
-use crate::term;
+use crate::term::{self, write_stdout};
 use crate::view;
 use crate::workspace;
-use anyhow::{Context, Result};
+use anyhow::Context;
 use std::path::Path;
 
 /// `cmetal run [name]` — verify one exercise and persist a pass
@@ -33,17 +33,17 @@ pub fn run(
     compiler: &Compiler,
     build_dir: &Path,
     name: Option<String>,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     let idx = state.resolve(name)?;
 
     println!();
-    term::print_header(&format!("Running: {}", state.exercises[idx].name()));
+    term::print_header(&format!("Running: {}", state.exercises[idx].name()))?;
     println!();
 
     let exercise = &state.exercises[idx];
     let status = runner::evaluate(exercise, compiler, build_dir)?;
     let revealed = runner::reveal_if_passed(exercise, &status);
-    view::report_outcome(exercise, compiler, &status, revealed.as_deref());
+    view::report_outcome(exercise, compiler, &status, revealed.as_deref())?;
 
     match status {
         RunStatus::Passed(_) => {
@@ -53,7 +53,7 @@ pub fn run(
         // A skipped exercise is not a failure: the learner asked for an
         // exercise this compiler cannot judge, and was told so.
         RunStatus::Unsupported => {
-            term::print_info("Re-run with --compiler to use the required compiler.");
+            term::print_info("Re-run with --compiler to use the required compiler.")?;
             println!();
         }
         RunStatus::Failed(_) | RunStatus::Missing => std::process::exit(1),
@@ -62,14 +62,14 @@ pub fn run(
 }
 
 /// `cmetal hint [name] --level N` — progressive hints, no compilation.
-pub fn hint(state: &AppState, name: Option<String>, level: usize) -> Result<()> {
+pub fn hint(state: &AppState, name: Option<String>, level: usize) -> anyhow::Result<()> {
     let idx = state.resolve(name)?;
     let exercise = &state.exercises[idx];
     let hints = exercise.hints();
 
     println!();
     if hints.is_empty() {
-        term::print_warning(&format!("No hints available for {}.", exercise.name()));
+        term::print_warning(&format!("No hints available for {}.", exercise.name()))?;
         println!();
         return Ok(());
     }
@@ -81,7 +81,7 @@ pub fn hint(state: &AppState, name: Option<String>, level: usize) -> Result<()> 
             i + 1,
             hints.len(),
             exercise.name()
-        ));
+        ))?;
         println!();
         for line in hint.lines() {
             println!("  {line}");
@@ -92,7 +92,7 @@ pub fn hint(state: &AppState, name: Option<String>, level: usize) -> Result<()> 
         term::print_info(&format!(
             "Use --level {} to see the next hint.",
             show_up_to + 1
-        ));
+        ))?;
     }
     println!();
     Ok(())
@@ -110,7 +110,7 @@ pub fn solution(
     compiler: &Compiler,
     build_dir: &Path,
     name: Option<String>,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     let idx = state.resolve(name)?;
     let ex_name = state.exercises[idx].name().to_string();
 
@@ -122,13 +122,13 @@ pub fn solution(
     if !already_done && !verified_now {
         term::print_warning(&format!(
             "{ex_name} is not solved yet. Fix it first — then the solution unlocks!"
-        ));
+        ))?;
         println!();
         std::process::exit(1);
     }
 
     let path = state.exercises[idx].reveal_solution()?;
-    term::print_success(&format!("Solution for {ex_name}: {}", path.display()));
+    term::print_success(&format!("Solution for {ex_name}: {}", path.display()))?;
     println!();
 
     // The verify pass that just unlocked the solution is a completion
@@ -141,44 +141,47 @@ pub fn solution(
 }
 
 /// `cmetal list` — every exercise grouped by topic directory.
-pub fn list(state: &AppState) {
-    println!();
-    term::print_header("Exercises");
-    println!();
+pub fn list(state: &AppState) -> anyhow::Result<()> {
+    write_stdout("\n")?;
+    term::print_header("Exercises")?;
+    write_stdout("\n")?;
     let (done, total) = state.progress();
-    term::print_progress(done, total);
-    println!();
+    term::print_progress(done, total)?;
+    write_stdout("\n")?;
 
     let mut current_dir = String::new();
     for (i, exercise) in state.exercises.iter().enumerate() {
         if exercise.info.dir != current_dir {
             current_dir = exercise.info.dir.clone();
-            println!("  {current_dir}/");
+
+            write_stdout(&format!("  {current_dir}/\n"))?;
         }
-        println!(
-            "    {} {}{}",
+
+        write_stdout(&format!(
+            "    {} {}{}\n\n",
             view::status_marker(state, i, exercise),
             exercise.name(),
             view::compiler_note(exercise)
-        );
+        ))?;
     }
-    println!();
+
+    Ok(())
 }
 
 /// `cmetal verify` — the whole curriculum, terse. Passes are recorded
 /// in one batch at the end so an interrupted sweep does not leave
 /// progress half-written.
-pub fn verify(state: &mut AppState, compiler: &Compiler, build_dir: &Path) -> Result<()> {
-    println!();
-    term::print_header("Verifying all exercises...");
-    println!();
+pub fn verify(state: &mut AppState, compiler: &Compiler, build_dir: &Path) -> anyhow::Result<()> {
+    write_stdout("\n")?;
+    term::print_header("Verifying all exercises...")?;
+    write_stdout("\n")?;
 
     let mut all_passed = true;
     let mut passed_names = Vec::new();
     for exercise in &state.exercises {
         match runner::evaluate(exercise, compiler, build_dir) {
             Ok(status) => {
-                view::report_terse(exercise, &status);
+                view::report_terse(exercise, &status)?;
                 match status {
                     RunStatus::Passed(_) => passed_names.push(exercise.name().to_string()),
                     RunStatus::Failed(_) => all_passed = false,
@@ -197,7 +200,7 @@ pub fn verify(state: &mut AppState, compiler: &Compiler, build_dir: &Path) -> Re
             // sweep cannot claim success without having judged this
             // exercise. `{e:#}` keeps anyhow's cause chain.
             Err(e) => {
-                term::print_error(&format!("{}: {e:#}", exercise.name()));
+                term::print_error(&format!("{}: {e:#}", exercise.name()))?;
                 all_passed = false;
             }
         }
@@ -208,11 +211,11 @@ pub fn verify(state: &mut AppState, compiler: &Compiler, build_dir: &Path) -> Re
     }
     state.save()?;
 
-    println!();
+    write_stdout("\n")?;
     if all_passed {
-        term::print_success("All exercises passed!");
+        term::print_success("All exercises passed!")?;
     } else {
-        term::print_error("Some exercises failed.");
+        term::print_error("Some exercises failed.")?;
         std::process::exit(1);
     }
     Ok(())
@@ -225,15 +228,15 @@ pub fn reset_all(
     info: &InfoFile,
     base_dir: &Path,
     force: bool,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     let targets: Vec<&ExerciseInfo> = info.exercises.iter().collect();
     if !restore_with_consent(base_dir, &targets, force)? {
         return Ok(());
     }
     state.reset()?;
 
-    println!();
-    term::print_success("Progress reset. Workspace restored to pristine exercises!");
+    write_stdout("\n")?;
+    term::print_success("Progress reset. Workspace restored to pristine exercises!")?;
     // Saying "reset" while leaving files behind would be a lie, and
     // these are the one thing here worth salvaging — so name them
     // rather than delete them.
@@ -242,9 +245,9 @@ pub fn reset_all(
             "Left in place: {} (unreadable progress from an earlier run — \
              delete it once you no longer need it).",
             kept.display()
-        ));
+        ))?;
     }
-    println!();
+    write_stdout("\n")?;
     Ok(())
 }
 
@@ -253,21 +256,25 @@ pub fn reset_all(
 /// Every command that discards a learner's code goes through here, so
 /// the notice lives with the destruction and no path can skip it.
 /// Returns false when the learner declined; nothing was touched.
-fn restore_with_consent(base_dir: &Path, targets: &[&ExerciseInfo], force: bool) -> Result<bool> {
+fn restore_with_consent(
+    base_dir: &Path,
+    targets: &[&ExerciseInfo],
+    force: bool,
+) -> anyhow::Result<bool> {
     let edited = workspace::edited_among(base_dir, targets.iter().copied());
     if !edited.is_empty() {
-        println!();
+        write_stdout("\n")?;
         term::print_warning(&format!(
             "This discards your work on {} exercise(s): {}.",
             edited.len(),
             edited.join(", ")
-        ));
+        ))?;
         // --force answers the question; it does not silence the
         // record, or an unattended run leaves no trace of what went.
         if !force && !term::confirm("Continue?")? {
-            println!();
-            term::print_info("Nothing was changed.");
-            println!();
+            write_stdout("\n")?;
+            term::print_info("Nothing was changed.")?;
+            write_stdout("\n")?;
             return Ok(false);
         }
     }
@@ -285,7 +292,7 @@ pub fn reset_one(
     name: String,
     compiler_kind: CompilerKind,
     force: bool,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     let info = InfoFile::parse(&base_dir.join("info.toml"))?;
     let mut state = state_without_compiler(base_dir, &info, compiler_kind);
     let idx = state.resolve(Some(name))?;
@@ -300,12 +307,12 @@ pub fn reset_one(
     state.mark_pending(&ex_name);
     state.save()?;
 
-    println!();
+    write_stdout("\n")?;
     term::print_success(&format!(
         "{ex_name} restored to the pristine exercise and marked pending again \
          (other progress kept)."
-    ));
-    println!();
+    ))?;
+    write_stdout("\n")?;
     Ok(())
 }
 
@@ -318,7 +325,11 @@ pub fn reset_one(
 /// current, which means it can also migrate a pre-rename
 /// `.clings-state.txt` — unavoidable, since "the exercise I am on" is
 /// a fact only the progress file holds.
-pub fn diff(base_dir: &Path, name: Option<String>, compiler_kind: CompilerKind) -> Result<()> {
+pub fn diff(
+    base_dir: &Path,
+    name: Option<String>,
+    compiler_kind: CompilerKind,
+) -> anyhow::Result<()> {
     let info = InfoFile::parse(&base_dir.join("info.toml"))?;
 
     // A named exercise is resolved against info.toml alone. diff is a
@@ -383,15 +394,4 @@ fn state_without_compiler(
     let work_dir = workspace::work_dir(base_dir);
     let exercises = workspace::load_exercises(info, base_dir, &work_dir, compiler_kind);
     AppState::new(exercises, base_dir, term::warn_stderr)
-}
-
-/// Writes to stdout, tolerating ONLY a closed pipe (`cmetal diff x |
-/// head`); any other write failure is a real error and propagates.
-fn write_stdout(text: &str) -> Result<()> {
-    use std::io::Write;
-    match std::io::stdout().write_all(text.as_bytes()) {
-        Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
-        Err(e) => Err(e).context("Failed to write to stdout"),
-    }
 }

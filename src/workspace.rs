@@ -96,7 +96,7 @@ pub fn init(dir: Option<PathBuf>) -> Result<()> {
     }
 
     println!();
-    term::print_success(&format!("Workspace created in {}", target.display()));
+    term::print_success(&format!("Workspace created in {}", target.display()))?;
     println!();
     println!("  Next steps:");
     println!("    cd {}", target.display());
@@ -117,7 +117,7 @@ fn recover_interrupted_update(base_dir: &Path, backup: &Path) -> Result<()> {
     if !backup.exists() {
         return Ok(());
     }
-    term::print_warning("Found leftovers of an interrupted update — recovering.");
+    term::print_warning("Found leftovers of an interrupted update — recovering.")?;
     for entry in std::fs::read_dir(backup)? {
         let entry = entry?.path();
         let name = entry.file_name().expect("backup entries have names");
@@ -231,7 +231,7 @@ pub fn update(base_dir: &Path) -> Result<()> {
     if !meta_dir.exists() && legacy_meta.join("manifest.json").exists() {
         std::fs::rename(&legacy_meta, &meta_dir)
             .context("Failed to migrate the pre-rename .clings directory")?;
-        term::print_info("Migrated workspace metadata from .clings/ to .cmetal/.");
+        term::print_info("Migrated workspace metadata from .clings/ to .cmetal/.")?;
     }
     if !meta_dir.join("manifest.json").exists() {
         anyhow::bail!(
@@ -270,7 +270,7 @@ pub fn update(base_dir: &Path) -> Result<()> {
             println!();
             term::print_info(&format!(
                 "Workspace already on curriculum {bin_version}; nothing to update."
-            ));
+            ))?;
             println!();
             return Ok(());
         }
@@ -341,30 +341,30 @@ pub fn update(base_dir: &Path) -> Result<()> {
     term::print_success(&format!(
         "Workspace updated to curriculum {}.",
         env!("CARGO_PKG_VERSION")
-    ));
+    ))?;
     if !new_exercises.is_empty() {
         term::print_info(&format!(
             "{} new exercise(s) — they appear in my_exercises/ on the next run: {}",
             new_exercises.len(),
             new_exercises.join(", ")
-        ));
+        ))?;
     }
     if !refreshed.is_empty() {
         term::print_info(&format!(
             "{} untouched working cop(ies) refreshed: {}",
             refreshed.len(),
             refreshed.join(", ")
-        ));
+        ))?;
     }
     for name in &kept {
         term::print_warning(&format!(
             "{name} changed upstream but you have edits — your copy is kept. \
              Compare with `cmetal diff {name}`, or take the new version with \
              `cmetal reset {name}`."
-        ));
+        ))?;
     }
     if new_exercises.is_empty() && refreshed.is_empty() && kept.is_empty() {
-        term::print_info("Curriculum files updated; no working-copy changes to reconcile.");
+        term::print_info("Curriculum files updated; no working-copy changes to reconcile.")?;
     }
     println!();
     Ok(())
