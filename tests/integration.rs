@@ -1611,3 +1611,38 @@ fn cli_reset_named_exercise_also_announces_what_it_discards() {
         "int main(void) { return 1; }\n"
     );
 }
+
+#[test]
+fn cli_list_tolerates_closed_stdout() {
+    use std::process::Stdio;
+
+    let tmp = TempDir::new().unwrap();
+    setup_project(
+        tmp.path(),
+        &[("hello", "00_intro", "int main(void) { return 0; }\n")],
+    );
+
+    let (reader, writer) = std::io::pipe().unwrap();
+    drop(reader);
+
+    let output = Command::new(cmetal_bin())
+        .arg("list")
+        .current_dir(tmp.path())
+        .stdin(Stdio::null())
+        .stdout(writer)
+        .stderr(Stdio::piped())
+        .output()
+        .unwrap();
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "list deve terminare con successo, stderr: {stderr}"
+    );
+    assert!(
+        stderr.is_empty(),
+        "list deve terminare senza diagnostiche, stderr: {stderr}"
+    );
+}

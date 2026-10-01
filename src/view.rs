@@ -13,7 +13,7 @@ use crate::app_state::AppState;
 use crate::compiler::Compiler;
 use crate::exercise::Exercise;
 use crate::runner::RunStatus;
-use crate::term;
+use crate::term::{self, write_stdout};
 use std::path::Path;
 
 /// The full report for one exercise: verdict, captured output, and —
@@ -30,21 +30,21 @@ pub fn report_outcome(
     compiler: &Compiler,
     status: &RunStatus,
     revealed: Option<&Path>,
-) {
+) -> anyhow::Result<()> {
     match status {
         RunStatus::Passed(result) => {
-            term::print_success(&format!("{} passed!", exercise.name()));
+            term::print_success(&format!("{} passed!", exercise.name()))?;
             if !result.output.is_empty() {
                 // "Program", not "Output": print_stage_output already
                 // appends the word "output" to the label.
-                term::print_stage_output("Program", &result.output);
+                term::print_stage_output("Program", &result.output)?;
             }
             if let Some(path) = revealed {
-                println!("\r");
+                write_stdout("\r\n")?;
                 term::print_info(&format!(
                     "Official solution revealed: {} — compare it with yours!",
                     path.display()
-                ));
+                ))?;
             }
         }
         RunStatus::Failed(result) => {
@@ -52,8 +52,8 @@ pub fn report_outcome(
                 "{} failed at stage: {}",
                 exercise.name(),
                 result.stage
-            ));
-            term::print_stage_output(result.stage, &result.output);
+            ))?;
+            term::print_stage_output(result.stage, &result.output)?;
         }
         RunStatus::Unsupported => {
             term::print_warning(&format!(
@@ -61,38 +61,40 @@ pub fn report_outcome(
                 exercise.name(),
                 exercise.required_compilers(),
                 compiler.kind()
-            ));
+            ))?;
         }
         RunStatus::Missing => {
             term::print_error(&format!(
                 "Exercise file not found: {}",
                 exercise.path.display()
-            ));
+            ))?;
         }
-    }
+    };
+
+    Ok(())
 }
 
 /// One line per exercise, for sweeps over the whole curriculum where
 /// the full body would bury the result.
-pub fn report_terse(exercise: &Exercise, status: &RunStatus) {
+pub fn report_terse(exercise: &Exercise, status: &RunStatus) -> anyhow::Result<()> {
     match status {
-        RunStatus::Passed(_) => term::print_success(exercise.name()),
+        RunStatus::Passed(_) => term::print_success(exercise.name())?,
         RunStatus::Failed(result) => term::print_error(&format!(
             "{} (failed at: {})",
             exercise.name(),
             result.stage
-        )),
+        ))?,
         // The glyphs must match `verify`'s verdict: skipped does not
         // fail the sweep, missing does.
         RunStatus::Unsupported => term::print_warning(&format!(
             "{}: skipped (requires {})",
             exercise.name(),
             exercise.required_compilers()
-        )),
-        RunStatus::Missing => {
-            term::print_error(&format!("{}: file not found", exercise.name()));
-        }
-    }
+        ))?,
+        RunStatus::Missing => term::print_error(&format!("{}: file not found", exercise.name()))?,
+    };
+
+    Ok(())
 }
 
 /// Status glyph for the exercise lists (`cmetal list` and watch's `l`).

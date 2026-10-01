@@ -127,6 +127,29 @@ cargo clippy -- -D warnings
 python3 scripts/check_exercises.py   # C exercise/solution invariant
 ```
 
+## Releasing
+
+A release is a version bump merged through a PR, then a `vX.Y.Z` tag on
+main. The tag triggers `.github/workflows/release.yml`, which builds the
+four prebuilt tarballs, publishes the GitHub release, bumps the Homebrew
+tap formula and publishes the crate on crates.io. The version must grow
+on every release: `cmetal update` no-ops between equal versions, so a
+release that does not bump leaves existing workspaces on the old
+curriculum.
+
+`scripts/release.sh` drives the manual steps and checks the outcome:
+
+```bash
+scripts/release.sh status           # what main has accumulated since the last tag
+scripts/release.sh prepare 0.5.0    # bump on release/0.5.0, local checks, open the PR
+scripts/release.sh tag 0.5.0        # after the merge: tag main, watch the workflow, verify
+scripts/release.sh verify 0.5.0     # assets, tap formula, crates.io, tarball smoke test
+```
+
+`--dry-run` stops `prepare` before pushing and `tag` before tagging;
+`--skip-checks` skips the local build/test/publish dry run (CI runs them
+on the PR); `--no-watch` returns right after pushing the tag.
+
 ## Code style
 
 - **C:** follow the existing style, 4-space indent

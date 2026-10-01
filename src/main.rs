@@ -11,7 +11,7 @@ mod view;
 mod watch;
 mod workspace;
 
-use anyhow::{Context, Result};
+use anyhow::Context;
 use app_state::AppState;
 use clap::{Parser, Subcommand};
 use compiler::{Compiler, CompilerKind};
@@ -79,7 +79,7 @@ enum Commands {
     },
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     let compiler_kind = match cli.compiler.to_lowercase().as_str() {
@@ -157,12 +157,12 @@ fn main() -> Result<()> {
         Some(Commands::Solution { name }) => {
             commands::solution(&mut state, &compiler()?, &build_dir, name)?
         }
-        Some(Commands::List) => commands::list(&state),
+        Some(Commands::List) => commands::list(&state)?,
         Some(Commands::Verify) => commands::verify(&mut state, &compiler()?, &build_dir)?,
         Some(Commands::Reset { name: None, force }) => {
             commands::reset_all(&mut state, &info, &base_dir, force)?
         }
-    }
+    };
 
     Ok(())
 }

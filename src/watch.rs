@@ -1,9 +1,8 @@
 use crate::app_state::AppState;
 use crate::compiler::Compiler;
 use crate::runner::{self, RunStatus};
-use crate::term;
+use crate::term::{self, write_stdout};
 use crate::view;
-use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use notify_debouncer_mini::{new_debouncer, DebouncedEvent, DebouncedEventKind};
@@ -32,7 +31,7 @@ struct TerminalGuard {
 }
 
 impl TerminalGuard {
-    fn enter() -> Result<Self> {
+    fn enter() -> anyhow::Result<Self> {
         let mut guard = Self {
             alternate_screen: false,
             raw_mode: false,
@@ -60,7 +59,7 @@ impl Drop for TerminalGuard {
 struct RawModeGuard;
 
 impl RawModeGuard {
-    fn enter() -> Result<Self> {
+    fn enter() -> anyhow::Result<Self> {
         crossterm::terminal::enable_raw_mode()?;
         Ok(Self)
     }
@@ -86,7 +85,7 @@ pub fn run_watch(
     exercises_dir: &Path,
     build_dir: &Path,
     welcome: Option<&str>,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     let (tx, rx) = mpsc::channel();
 
     // Track which hint level we're at for the current exercise
@@ -122,18 +121,18 @@ pub fn run_watch(
 
     // Show welcome message before entering alternate screen
     if let Some(msg) = welcome {
-        println!();
+        write_stdout("\n")?;
         for line in msg.lines() {
-            println!("  {line}");
+            write_stdout(&format!("  {line}\n"))?;
         }
-        println!();
-        println!(
-            "  cmetal v{} — compiler: {}",
+        write_stdout("\n")?;
+        write_stdout(&format!(
+            "  cmetal v{} — compiler: {}\n",
             env!("CARGO_PKG_VERSION"),
             compiler.kind()
-        );
-        println!();
-        println!("  Press any key to start...");
+        ))?;
+        write_stdout("\n")?;
+        write_stdout("  Press any key to start...\n")?;
         {
             let _raw = RawModeGuard::enter()?;
             let _ = event::read();
@@ -145,9 +144,9 @@ pub fn run_watch(
     let _guard = TerminalGuard::enter()?;
 
     // Initial run
-    print_watch_header(state, compiler);
+    print_watch_header(state, compiler)?;
     last_run_success = run_current_exercise(state, compiler, build_dir);
-    print_watch_commands();
+    print_watch_commands()?;
 
     // Drain any events that arrived during initial compilation
     while rx.try_recv().is_ok() {}
@@ -177,25 +176,25 @@ pub fn run_watch(
                 last_mtime = new_mtime;
 
                 term::clear_screen();
-                print_watch_header(state, compiler);
+                print_watch_header(state, compiler)?;
                 last_run_success = run_current_exercise(state, compiler, build_dir);
-                print_watch_commands();
+                print_watch_commands()?;
 
                 // Drain events that arrived during compilation
                 while rx.try_recv().is_ok() {}
             }
             Ok(WatchEvent::Key(KeyCode::Char('n'))) => {
                 // Mark current as done only if it passed, then advance
-                if last_run_success {
+                if last_run_success? {
                     if let Some(name) = state.current_exercise().map(|e| e.name().to_string()) {
                         state.mark_done(&name);
                     }
                 }
                 if state.all_done() {
                     term::clear_screen();
-                    println!("\r");
-                    term::print_success("All exercises completed! Congratulations!");
-                    println!("\r");
+                    write_stdout("\r\n")?;
+                    term::print_success("All exercises completed! Congratulations!")?;
+                    write_stdout("\r\n")?;
                     break;
                 }
                 state.next_pending();
@@ -203,9 +202,9 @@ pub fn run_watch(
                 hint_level = 0; // Reset hints for new exercise
                 last_mtime = current_exercise_mtime(state);
                 term::clear_screen();
-                print_watch_header(state, compiler);
+                print_watch_header(state, compiler)?;
                 last_run_success = run_current_exercise(state, compiler, build_dir);
-                print_watch_commands();
+                print_watch_commands()?;
                 while rx.try_recv().is_ok() {}
             }
             Ok(WatchEvent::Key(KeyCode::Char('p'))) => {
@@ -215,9 +214,9 @@ pub fn run_watch(
                     hint_level = 0;
                     last_mtime = current_exercise_mtime(state);
                     term::clear_screen();
-                    print_watch_header(state, compiler);
+                    print_watch_header(state, compiler)?;
                     last_run_success = run_current_exercise(state, compiler, build_dir);
-                    print_watch_commands();
+                    print_watch_commands()?;
                     while rx.try_recv().is_ok() {}
                 }
             }
@@ -226,20 +225,20 @@ pub fn run_watch(
                 if let Some(exercise) = state.current_exercise() {
                     let hints = exercise.hints();
                     term::clear_screen();
-                    print_watch_header(state, compiler);
-                    println!("\r");
+                    print_watch_header(state, compiler)?;
+                    write_stdout("\r\n")?;
 
                     if hints.is_empty() {
-                        term::print_warning("No hints available for this exercise.");
+                        term::print_warning("No hints available for this exercise.")?;
                     } else {
                         let current = hint_level.min(hints.len() - 1);
                         for i in 0..=current {
-                            term::print_header(&format!("Hint {} of {}:", i + 1, hints.len()));
-                            println!("\r");
+                            term::print_header(&format!("Hint {} of {}:", i + 1, hints.len()))?;
+                            write_stdout("\r\n")?;
                             for line in hints[i].lines() {
-                                println!("  {line}\r");
+                                write_stdout(&format!("  {line}\r\n"))?;
                             }
-                            println!("\r");
+                            write_stdout("\r\n")?;
                         }
 
                         if current + 1 < hints.len() {
@@ -247,38 +246,38 @@ pub fn run_watch(
                             term::print_info(&format!(
                                 "Press 'h' again for the next hint ({} more).",
                                 hints.len() - current - 1
-                            ));
+                            ))?;
                         } else {
-                            term::print_info("No more hints. You've seen them all!");
+                            term::print_info("No more hints. You've seen them all!")?;
                         }
                     }
-                    println!("\r");
-                    print_watch_commands();
+                    write_stdout("\r\n")?;
+                    print_watch_commands()?;
                 }
             }
             Ok(WatchEvent::Key(KeyCode::Char('l'))) => {
                 // List exercises
                 term::clear_screen();
-                println!("\r");
-                term::print_header("Exercises:");
-                println!("\r");
+                write_stdout("\r\n")?;
+                term::print_header("Exercises:")?;
+                write_stdout("\r\n")?;
                 for (i, ex) in state.exercises.iter().enumerate() {
-                    println!(
-                        "  {} {}{}\r",
+                    write_stdout(&format!(
+                        "  {} {}{}\r\n",
                         view::status_marker(state, i, ex),
                         ex.name(),
                         view::compiler_note(ex)
-                    );
+                    ))?;
                 }
-                println!("\r");
-                print_watch_commands();
+                write_stdout("\r\n")?;
+                print_watch_commands()?;
             }
             Ok(WatchEvent::Key(KeyCode::Char('r'))) => {
                 // Re-run current exercise
                 term::clear_screen();
-                print_watch_header(state, compiler);
+                print_watch_header(state, compiler)?;
                 last_run_success = run_current_exercise(state, compiler, build_dir);
-                print_watch_commands();
+                print_watch_commands()?;
                 while rx.try_recv().is_ok() {}
             }
             Ok(WatchEvent::Key(KeyCode::Char('q'))) | Ok(WatchEvent::Quit) => {
@@ -294,46 +293,54 @@ pub fn run_watch(
     Ok(())
 }
 
-fn print_watch_header(state: &AppState, compiler: &Compiler) {
+fn print_watch_header(state: &AppState, compiler: &Compiler) -> anyhow::Result<()> {
     let (done, total) = state.progress();
-    println!("\r");
+    write_stdout("\r\n")?;
     term::print_header(&format!(
         "cmetal v{} [{}]  Exercise {} of {}",
         env!("CARGO_PKG_VERSION"),
         compiler.kind(),
         state.current_index + 1,
         total
-    ));
-    term::print_progress(done, total);
-    println!("\r");
+    ))?;
+    term::print_progress(done, total)?;
+    write_stdout("\r\n")?;
+
+    Ok(())
 }
 
-fn print_watch_commands() {
-    println!("\r");
+fn print_watch_commands() -> anyhow::Result<()> {
+    write_stdout("\r\n")?;
     let mut stdout = io::stdout();
     let _ = crossterm::execute!(
         stdout,
         crossterm::style::SetForegroundColor(crossterm::style::Color::DarkGrey)
     );
-    println!("  [n] next  [p] prev  [h] hint  [l] list  [r] re-run  [q] quit\r");
+    write_stdout("  [n] next  [p] prev  [h] hint  [l] list  [r] re-run  [q] quit\r\n")?;
     let _ = crossterm::execute!(
         stdout,
         crossterm::style::SetAttribute(crossterm::style::Attribute::Reset)
     );
+
+    Ok(())
 }
 
-fn run_current_exercise(state: &AppState, compiler: &Compiler, build_dir: &Path) -> bool {
+fn run_current_exercise(
+    state: &AppState,
+    compiler: &Compiler,
+    build_dir: &Path,
+) -> anyhow::Result<bool> {
     let exercise = match state.current_exercise() {
         Some(e) => e,
         None => {
-            term::print_warning("No exercises found.");
-            return false;
+            term::print_warning("No exercises found.")?;
+            return Ok(false);
         }
     };
 
-    println!("  Exercise: {}\r", exercise.name());
-    println!("  File: {}\r", exercise.path.display());
-    println!("\r");
+    write_stdout(&format!("  Exercise: {}\r\n", exercise.name()))?;
+    write_stdout(&format!("  File: {}\r\n", exercise.path.display()))?;
+    write_stdout("\r\n")?;
 
     // Watch mode never propagates: a broken toolchain must not tear
     // down the alternate screen mid-session, so it is reported like
@@ -341,24 +348,24 @@ fn run_current_exercise(state: &AppState, compiler: &Compiler, build_dir: &Path)
     let status = match runner::evaluate(exercise, compiler, build_dir) {
         Ok(status) => status,
         Err(e) => {
-            term::print_error(&format!("Error verifying {}: {e:#}", exercise.name()));
-            return false;
+            term::print_error(&format!("Error verifying {}: {e:#}", exercise.name()))?;
+            return Ok(false);
         }
     };
     let revealed = runner::reveal_if_passed(exercise, &status);
-    view::report_outcome(exercise, compiler, &status, revealed.as_deref());
+    view::report_outcome(exercise, compiler, &status, revealed.as_deref())?;
 
     // Navigation advice is watch-specific, so it stays here rather than
     // in the shared reporter.
     match &status {
         RunStatus::Passed(_) => {
-            term::print_info("Press 'n' to move to the next exercise.");
+            term::print_info("Press 'n' to move to the next exercise.")?;
         }
         RunStatus::Unsupported => {
-            term::print_info("Press 'n' to skip it, or restart cmetal with --compiler.");
+            term::print_info("Press 'n' to skip it, or restart cmetal with --compiler.")?;
         }
         _ => {}
     }
 
-    status.passed()
+    Ok(status.passed())
 }
