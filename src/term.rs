@@ -8,7 +8,7 @@
 
 use anyhow::Context;
 use crossterm::style::{Attribute, Color, SetAttribute, SetForegroundColor};
-use std::io::{self, IsTerminal};
+use std::io::{self, BufRead, IsTerminal, Write};
 
 pub fn print_success(msg: &str) -> anyhow::Result<()> {
     let mut stdout = io::stdout();
@@ -106,13 +106,17 @@ pub fn print_progress(done: usize, total: usize) -> anyhow::Result<()> {
     let empty = bar_width - filled;
 
     let _ = crossterm::execute!(stdout, SetForegroundColor(Color::Cyan));
-    write_stdout("  Completed: [\n")?;
+    write_stdout("  Completed: [")?;
+
     let _ = crossterm::execute!(stdout, SetForegroundColor(Color::Green));
-    write_stdout(&format!("{}\n", "█".repeat(filled)))?;
+    write_stdout("█".repeat(filled).as_str())?;
+
     let _ = crossterm::execute!(stdout, SetForegroundColor(Color::DarkGrey));
-    write_stdout(&format!("{}\n", "░".repeat(empty)))?;
+    write_stdout("░".repeat(empty).as_str())?;
+
     let _ = crossterm::execute!(stdout, SetForegroundColor(Color::Cyan));
     write_stdout(&format!("] {done}/{total}\r\n"))?;
+
     let _ = crossterm::execute!(stdout, SetAttribute(Attribute::Reset));
 
     Ok(())
@@ -121,8 +125,10 @@ pub fn print_progress(done: usize, total: usize) -> anyhow::Result<()> {
 pub fn print_stage_output(stage: &str, output: &str) -> anyhow::Result<()> {
     if !output.is_empty() {
         let mut stdout = io::stdout();
+
         let _ = crossterm::execute!(stdout, SetForegroundColor(Color::DarkGrey));
         write_stdout(&format!("\r\n  ── {stage} output ──\r\n"))?;
+
         let _ = crossterm::execute!(stdout, SetAttribute(Attribute::Reset));
         for line in output.lines() {
             write_stdout(&format!("  {line}\r\n"))?;
@@ -133,8 +139,7 @@ pub fn print_stage_output(stage: &str, output: &str) -> anyhow::Result<()> {
 }
 
 pub fn write_stdout(text: &str) -> anyhow::Result<()> {
-    use std::io::Write;
-    match std::io::stdout().write_all(text.as_bytes()) {
+    match io::stdout().write_all(text.as_bytes()) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
         Err(e) => Err(e).context("Failed to write to stdout"),
@@ -152,14 +157,16 @@ pub fn write_stdout(text: &str) -> anyhow::Result<()> {
 /// disappear into the pipe and leave the learner staring at a program
 /// that looks hung.
 pub fn confirm(question: &str) -> anyhow::Result<bool> {
-    use std::io::{BufRead, Write};
     if !io::stdin().is_terminal() {
         return Ok(true);
     }
-    write_stdout(&format!("  {question} [y/N] \n"))?;
+
+    eprint!("  {question} [y/N] ");
     io::stderr().flush()?;
+
     let mut answer = String::new();
     io::stdin().lock().read_line(&mut answer)?;
+
     Ok(matches!(answer.trim().to_lowercase().as_str(), "y" | "yes"))
 }
 

@@ -36,9 +36,9 @@ pub fn run(
 ) -> anyhow::Result<()> {
     let idx = state.resolve(name)?;
 
-    println!();
+    write_stdout("\n")?;
     term::print_header(&format!("Running: {}", state.exercises[idx].name()))?;
-    println!();
+    write_stdout("\n")?;
 
     let exercise = &state.exercises[idx];
     let status = runner::evaluate(exercise, compiler, build_dir)?;
@@ -54,7 +54,7 @@ pub fn run(
         // exercise this compiler cannot judge, and was told so.
         RunStatus::Unsupported => {
             term::print_info("Re-run with --compiler to use the required compiler.")?;
-            println!();
+            write_stdout("\n")?;
         }
         RunStatus::Failed(_) | RunStatus::Missing => std::process::exit(1),
     }
@@ -67,10 +67,10 @@ pub fn hint(state: &AppState, name: Option<String>, level: usize) -> anyhow::Res
     let exercise = &state.exercises[idx];
     let hints = exercise.hints();
 
-    println!();
+    write_stdout("\n")?;
     if hints.is_empty() {
         term::print_warning(&format!("No hints available for {}.", exercise.name()))?;
-        println!();
+        write_stdout("\n")?;
         return Ok(());
     }
 
@@ -82,11 +82,11 @@ pub fn hint(state: &AppState, name: Option<String>, level: usize) -> anyhow::Res
             hints.len(),
             exercise.name()
         ))?;
-        println!();
+        write_stdout("\n")?;
         for line in hint.lines() {
-            println!("  {line}");
+            write_stdout(&format!("  {line}\n"))?;
         }
-        println!();
+        write_stdout("\n")?;
     }
     if show_up_to < hints.len() {
         term::print_info(&format!(
@@ -94,7 +94,7 @@ pub fn hint(state: &AppState, name: Option<String>, level: usize) -> anyhow::Res
             show_up_to + 1
         ))?;
     }
-    println!();
+    write_stdout("\n")?;
     Ok(())
 }
 
@@ -118,18 +118,18 @@ pub fn solution(
     let verified_now =
         !already_done && runner::evaluate(&state.exercises[idx], compiler, build_dir)?.passed();
 
-    println!();
+    write_stdout("\n")?;
     if !already_done && !verified_now {
         term::print_warning(&format!(
             "{ex_name} is not solved yet. Fix it first — then the solution unlocks!"
         ))?;
-        println!();
+        write_stdout("\n")?;
         std::process::exit(1);
     }
 
     let path = state.exercises[idx].reveal_solution()?;
     term::print_success(&format!("Solution for {ex_name}: {}", path.display()))?;
-    println!();
+    write_stdout("\n")?;
 
     // The verify pass that just unlocked the solution is a completion
     // like any other: persist it, or `cmetal list` keeps showing the

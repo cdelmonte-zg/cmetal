@@ -13,7 +13,7 @@ use crate::app_state::AppState;
 use crate::compiler::Compiler;
 use crate::exercise::Exercise;
 use crate::runner::RunStatus;
-use crate::term;
+use crate::term::{self, write_stdout};
 use std::path::Path;
 
 /// The full report for one exercise: verdict, captured output, and —
@@ -40,7 +40,7 @@ pub fn report_outcome(
                 term::print_stage_output("Program", &result.output)?;
             }
             if let Some(path) = revealed {
-                println!("\r");
+                write_stdout("\r\n")?;
                 term::print_info(&format!(
                     "Official solution revealed: {} — compare it with yours!",
                     path.display()
