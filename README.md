@@ -68,6 +68,13 @@ upgrade and uninstall, are covered in
 
 *Edit a `.c` file -- save -- cmetal recompiles -- read the hint -- fix -- green.*
 
+## Questions and feedback
+
+Questions about an exercise, and ideas for new ones, go in
+[Discussions](https://github.com/cdelmonte-zg/cmetal/discussions).
+Bugs in the CLI or in an exercise go in
+[Issues](https://github.com/cdelmonte-zg/cmetal/issues).
+
 ## Contributing
 
 An exercise is a broken `.c` file, its solution, and hints in
