@@ -2,6 +2,10 @@
 
 Thanks for your interest in contributing!
 
+Questions and ideas belong in
+[Discussions](https://github.com/cdelmonte-zg/cmetal/discussions); bugs
+in [Issues](https://github.com/cdelmonte-zg/cmetal/issues).
+
 > **Note:** learners never edit `exercises/` — cmetal copies it into the
 > gitignored `my_exercises/` workspace on first run. `exercises/` must
 > only ever contain the broken, unsolved versions.
